@@ -2082,17 +2082,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "muon_decoder"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "geo",
- "geo-types",
- "rand 0.9.2",
- "rfd",
-]
-
-[[package]]
 name = "naga"
 version = "0.19.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2396,6 +2385,17 @@ dependencies = [
  "redox_syscall 0.5.18",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "particle_decoder"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "geo",
+ "geo-types",
+ "rand 0.9.2",
+ "rfd",
 ]
 
 [[package]]

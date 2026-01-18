@@ -1,5 +1,5 @@
 [package]
-name = "muon_decoder"
+name = "particle_decoder"
 version = "0.1.0"
 edition = "2024"
 
