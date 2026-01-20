@@ -47,7 +47,7 @@ impl Particle {
         let energy: f32 = self
             .track
             .iter()
-            .map(|&(x, y)| grid[x as usize][y as usize])
+            .map(|&(x, y)| grid[x][y])
             .sum();
 
         *self.total_energy_cache.borrow_mut() = Some(energy);
@@ -57,7 +57,7 @@ impl Particle {
     pub fn max_energy(&self, grid: &Vec<Vec<f32>>) -> f32 {
         self.track
             .iter()
-            .map(|&(x, y)| grid[x as usize][y as usize])
+            .map(|&(x, y)| grid[x][y])
             .fold(0.0, |acc, val| acc.max(val))
     }
 
@@ -85,6 +85,10 @@ impl Particle {
         val
     }
 
+    pub fn slope(&self) -> f32 {
+        slope(&linear_regretion(&self.track), &self.track).atan() * 180.0 / PI as f32
+    }
+
     pub fn particle_type(&self, grid: &Vec<Vec<f32>>) -> PartType {
         if let Some(pt) = *self.part_type_cache.borrow() {
             return pt;
@@ -92,7 +96,7 @@ impl Particle {
 
         let pt = match self.size() {
             0..4 => return PartType::GAMMA,
-            4..50 => {
+            4..30 => {
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
                     if self.winding() < 1.0 {
                         PartType::BETA
@@ -101,7 +105,7 @@ impl Particle {
                     }
                 } else if self.max_energy(grid) > 100.0 {
                     if self.roundness() > 0.4 {
-                        PartType::ALPHA
+                        PartType::UNKNOWN //small blob
                     } else {
                         PartType::UNKNOWN
                     }
@@ -109,7 +113,7 @@ impl Particle {
                     PartType::UNKNOWN
                 }
             }
-            50.. => {
+            30.. => {
                 if self.max_energy(grid) < 100.0 && self.avg_energy(grid) < 40.0 {
                     if self.winding() > 1.0 {
                         PartType::BETA
@@ -148,7 +152,7 @@ fn roundness(points: &[(usize, usize)]) -> f32 {
     (4.0 * PI * area / (perimeter * perimeter)) as f32
 }
 
-fn winding_of_path(points: &[(usize, usize)]) -> f32 {
+/*fn winding_of_path(points: &[(usize, usize)]) -> f32 {
     if points.len() < 3 {
         return 0.0;
     }
@@ -173,4 +177,43 @@ fn winding_of_path(points: &[(usize, usize)]) -> f32 {
     }
 
     (total / (2.0 * PI)) as f32
+}*/
+
+
+fn linear_regretion (track: &[(usize, usize)]) -> (f32, f32) {
+    let mut total_x = 0.0;
+    let mut total_y = 0.0;
+    for (x, y) in track {
+        total_x += *x as f32;
+        total_y += *y as f32;
+    }
+    let avg_x: f32 = total_x / track.len() as f32;
+    let avg_y: f32 = total_y / track.len() as f32;
+    (avg_x, avg_y)
+}
+
+fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> f32 {
+    let mut total_off_x = 0.0;
+    let mut total_off = 0.0;
+    for (x, y) in track {
+        total_off_x += (*x as f32 - avg_x).powi(2);
+        total_off += (*x as f32 - avg_x) * (*y as f32 - avg_y);
+    }
+
+    total_off / total_off_x //slope
+}
+
+fn winding_of_path (track: &[(usize, usize)]) -> f32 {
+    let avgs = linear_regretion(track);
+    let slope = slope(&avgs, track);
+    let b = avgs.1 - avgs.0 * slope;
+
+    let mut mse = 0.0;
+    for (x, y) in track {
+        let y_pred = slope * (*x as f32) + b;
+        let diff = *y as f32 - y_pred;
+        mse += diff * diff;
+    }
+
+    mse / track.len() as f32
 }

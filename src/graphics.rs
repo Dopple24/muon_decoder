@@ -1,8 +1,5 @@
 use crate::decoder::{PartType, Particle};
-use eframe::{
-    egui::{self, ColorImage},
-    glow::ALPHA,
-};
+use eframe::egui::{self, ColorImage};
 use rfd::FileDialog;
 use std::collections::HashMap;
 
@@ -280,9 +277,15 @@ impl eframe::App for MatrixApp {
                 ));
 
                 if self.current_mode == Mode::Single {
+                    let selected_track = &self.tracks_to_draw[self.current_track];
                     ui.label(format!(
-                        "Particle: {:?}",
-                        self.tracks_to_draw[self.current_track].particle_type(&self.matrix)
+                        "Particle: {:?}\nmax energy: {}\ntrack length: {}\naverage energy: {}\ntotal energy: {}\nslope: {}",
+                        selected_track.particle_type(&self.matrix),
+                        selected_track.max_energy(&self.matrix),
+                        selected_track.size(),
+                        selected_track.avg_energy(&self.matrix),
+                        selected_track.total_energy(&self.matrix),
+                        selected_track.slope(),
                     ));
                 }
             });
@@ -293,15 +296,13 @@ impl eframe::App for MatrixApp {
         // ============================
         egui::TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("📂 Open File").clicked() {
-                    if let Some(path) = FileDialog::new().pick_file() {
+                if ui.button("📂 Open File").clicked()
+                    && let Some(path) = FileDialog::new().pick_file() {
                         if let Ok(mat) = crate::read_lines(path) {
                             self.matrix = mat;
                             let mut id_map = vec![vec![0; crate::SIZE]; crate::SIZE];
                             self.all_tracks =
-                                crate::particle_extractor::extract(&self.matrix, &mut id_map, 1)
-                                    .iter()
-                                    .map(|(_, t)| crate::decoder::Particle::new(t.clone()))
+                                crate::particle_extractor::extract(&self.matrix, &mut id_map, 2).values().map(|t| crate::decoder::Particle::new(t.clone()))
                                     .collect();
                             self.update_counter();
                             self.update_image();
@@ -309,7 +310,6 @@ impl eframe::App for MatrixApp {
                             self.error = Some("error".to_string());
                         }
                     }
-                }
             });
         });
 

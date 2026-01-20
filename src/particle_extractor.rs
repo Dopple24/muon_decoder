@@ -98,22 +98,20 @@ pub fn check_surroundings(
     // check all cells above and diagonals
     for dx in -range..=range {
         for dy in -range..0 {
-            if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map) {
-                if !found_ids.contains(&id) {
+            if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map)
+                && !found_ids.contains(&id) {
                     found_ids.push(id);
                 }
-            }
         }
     }
 
     // check cells left
     for dx in -range..0 {
         let dy = 0;
-        if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map) {
-            if !found_ids.contains(&id) {
+        if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map)
+            && !found_ids.contains(&id) {
                 found_ids.push(id);
             }
-        }
     }
 
     found_ids
