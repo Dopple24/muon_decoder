@@ -279,7 +279,7 @@ impl eframe::App for MatrixApp {
                 if self.current_mode == Mode::Single {
                     let selected_track = &self.tracks_to_draw[self.current_track];
                     ui.label(format!(
-                        "Particle: {:?}\nmax energy: {}\ntrack length: {}\naverage energy: {}\ntotal energy: {}\nslope: {}\nwinding: {}\n track: {:?}",
+                        "Particle: {:?}\nmax energy: {}\ntrack length: {}\naverage energy: {}\ntotal energy: {}\nslope: {}\nwinding: {}",
                         selected_track.particle_type(&self.matrix),
                         selected_track.max_energy(&self.matrix),
                         selected_track.size(),
@@ -287,7 +287,6 @@ impl eframe::App for MatrixApp {
                         selected_track.total_energy(&self.matrix),
                         selected_track.slope(),
                         selected_track.winding(),
-                        selected_track.get_track()
                     ));
                 }
             });

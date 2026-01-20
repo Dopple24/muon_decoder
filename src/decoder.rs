@@ -164,28 +164,64 @@ fn linear_regretion (track: &[(usize, usize)]) -> (f32, f32) {
     (avg_x, avg_y)
 }
 
-fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> f32 {
+fn get_totals((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> (f32, f32) {
     let mut total_off_x = 0.0;
     let mut total_off = 0.0;
     for (x, y) in track {
         total_off_x += (*x as f32 - avg_x).powi(2);
         total_off += (*x as f32 - avg_x) * (*y as f32 - avg_y);
     }
+    (total_off, total_off_x)
+}
 
+fn get_totals_reverse((avg_y, avg_x): &(f32, f32), track: &[(usize, usize)]) -> (f32, f32) {
+    let mut total_off_x = 0.0;
+    let mut total_off = 0.0;
+    for (y, x) in track {
+        total_off_x += (*x as f32 - avg_x).powi(2);
+        total_off += (*x as f32 - avg_x) * (*y as f32 - avg_y);
+    }
+    (total_off, total_off_x)
+}
+
+fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> f32 {
+    let (total_off, total_off_x) = get_totals(&(*avg_x, *avg_y), track);
     total_off / total_off_x //slope
 }
 
 fn winding_of_path (track: &[(usize, usize)]) -> f32 {
     let avgs = linear_regretion(track);
-    let slope = slope(&avgs, track);
-    let b = avgs.1 - avgs.0 * slope;
-
     let mut mse = 0.0;
-    for (x, y) in track {
-        let y_pred = slope * (*x as f32) + b;
-        let diff = *y as f32 - y_pred;
-        mse += diff * diff;
+
+    let (total_off, total_off_x) = get_totals(&avgs, track);
+    if (total_off / total_off_x).abs() < 10.0 {
+        let slope = total_off / total_off_x;
+
+        let b = avgs.1 - avgs.0 * slope;
+
+        for (x, y) in track {
+            let y_pred = slope * (*x as f32) + b;
+            let diff = *y as f32 - y_pred;
+            mse += diff * diff;
+        }
     }
+    else {
+        mse = 0.0;
+        println!("prev val: {}", total_off / total_off_x);
+        let (total_off_rev, total_off_x_rev) = get_totals_reverse(&avgs, track);
+        println!("new val: {}", total_off_rev / total_off_x_rev);
+        let slope = total_off_rev / total_off_x_rev;
+
+        let b = avgs.0 - avgs.1 * slope;
+
+        for (y, x) in track {
+            let y_pred = slope * (*x as f32) + b;
+            let diff = *y as f32 - y_pred;
+            mse += diff * diff;
+        }
+        println!("{}", mse);
+    };
+    
 
     mse / track.len() as f32
 }
