@@ -152,34 +152,6 @@ fn roundness(points: &[(usize, usize)]) -> f32 {
     (4.0 * PI * area / (perimeter * perimeter)) as f32
 }
 
-/*fn winding_of_path(points: &[(usize, usize)]) -> f32 {
-    if points.len() < 3 {
-        return 0.0;
-    }
-
-    let mut total = 0.0;
-
-    for i in 1..points.len() - 1 {
-        let (x0, y0) = points[i - 1];
-        let (x1, y1) = points[i];
-        let (x2, y2) = points[i + 1];
-
-        let v1x = x1 as f64 - x0 as f64;
-        let v1y = y1 as f64 - y0 as f64;
-        let v2x = x2 as f64 - x1 as f64;
-        let v2y = y2 as f64 - y1 as f64;
-
-        let cross = v1x * v2y - v1y * v2x;
-        let dot = v1x * v2x + v1y * v2y;
-
-        let angle = cross.atan2(dot);
-        total += angle;
-    }
-
-    (total / (2.0 * PI)) as f32
-}*/
-
-
 fn linear_regretion (track: &[(usize, usize)]) -> (f32, f32) {
     let mut total_x = 0.0;
     let mut total_y = 0.0;
