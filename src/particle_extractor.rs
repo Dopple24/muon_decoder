@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 /// Extracts connected particles from a grid.
 pub fn extract(
-    grid: &Vec<Vec<f32>>,
+    grid: &[Vec<f32>],
     id_map: &mut Vec<Vec<usize>>,
     range: i16,
 ) -> HashMap<usize, Vec<(usize, usize)>> {
@@ -39,7 +39,7 @@ pub fn extract(
 
 /// Builds a map of particle IDs to their coordinates.
 fn build_tracks(
-    id_map: &Vec<Vec<usize>>,
+    id_map: &[Vec<usize>],
     parent: &mut HashMap<usize, usize>,
 ) -> HashMap<usize, Vec<(usize, usize)>> {
     let mut tracks: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
@@ -85,8 +85,8 @@ fn union(a: usize, b: usize, parent: &mut HashMap<usize, usize>) {
 /// Checks all previously uncovered cells in range
 pub fn check_surroundings(
     location: &(usize, usize),
-    grid: &Vec<Vec<f32>>,
-    id_map: &Vec<Vec<usize>>,
+    grid: &[Vec<f32>],
+    id_map: &[Vec<usize>],
     range: i16,
 ) -> Vec<usize> {
     let mut found_ids: Vec<usize> = Vec::new();
@@ -99,9 +99,10 @@ pub fn check_surroundings(
     for dx in -range..=range {
         for dy in -range..0 {
             if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map)
-                && !found_ids.contains(&id) {
-                    found_ids.push(id);
-                }
+                && !found_ids.contains(&id)
+            {
+                found_ids.push(id);
+            }
         }
     }
 
@@ -109,9 +110,10 @@ pub fn check_surroundings(
     for dx in -range..0 {
         let dy = 0;
         if let Some(id) = check_cell((lx, ly), dx, dy, size_x, size_y, grid, id_map)
-            && !found_ids.contains(&id) {
-                found_ids.push(id);
-            }
+            && !found_ids.contains(&id)
+        {
+            found_ids.push(id);
+        }
     }
 
     found_ids
@@ -124,8 +126,8 @@ pub fn check_cell(
     dy: i16,
     size_x: i16,
     size_y: i16,
-    grid: &Vec<Vec<f32>>,
-    id_map: &Vec<Vec<usize>>,
+    grid: &[Vec<f32>],
+    id_map: &[Vec<usize>],
 ) -> Option<usize> {
     let x = loc.0 + dx;
     let y = loc.1 + dy;

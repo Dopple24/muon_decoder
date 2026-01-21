@@ -1,6 +1,7 @@
 use geo::{Area, ConvexHull, EuclideanLength};
 use geo_types::{Coord, MultiPoint};
 use std::f64::consts::PI;
+use std::cmp::{min, max};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PartType {
@@ -12,7 +13,7 @@ pub enum PartType {
 }
 use std::cell::RefCell;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Particle {
     track: Vec<(usize, usize)>,
     total_energy_cache: RefCell<Option<f32>>,
@@ -44,11 +45,7 @@ impl Particle {
             return val;
         }
 
-        let energy: f32 = self
-            .track
-            .iter()
-            .map(|&(x, y)| grid[x][y])
-            .sum();
+        let energy: f32 = self.track.iter().map(|&(x, y)| grid[x][y]).sum();
 
         *self.total_energy_cache.borrow_mut() = Some(energy);
         energy
@@ -86,7 +83,7 @@ impl Particle {
     }
 
     pub fn slope(&self) -> f32 {
-        slope(&linear_regretion(&self.track), &self.track).atan() * 180.0 / PI as f32
+        slope(&linear_regretion(&self.track), &self.track).min(573.0).max(-573.0).atan() * 180.0 / PI as f32
     }
 
     pub fn particle_type(&self, grid: &Vec<Vec<f32>>) -> PartType {
@@ -114,13 +111,18 @@ impl Particle {
                 }
             }
             30.. => {
-                if self.max_energy(grid) < 100.0 && self.avg_energy(grid) < 40.0 {
-                    if self.winding() > 1.0 {
+                if self.max_energy(grid) < 200.0 && self.avg_energy(grid) < 40.0 {
+                    /*
+                    This check was originally only self.winding() > 1.0
+                    Second part of the check was added for the purposes of detecting muons which have made an electron excited
+                    It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 80 or more pixels
+                    */
+                    if self.winding() > 1.0 && !(self.size() > 80 && self.winding() < 4.0) { 
                         PartType::BETA
                     } else {
                         PartType::MUON
                     }
-                } else if self.max_energy(grid) < 100.0 {
+                } else if self.max_energy(grid) < 200.0 {
                     PartType::UNKNOWN
                 } else if self.roundness() > 0.4 {
                     PartType::ALPHA
@@ -152,7 +154,7 @@ fn roundness(points: &[(usize, usize)]) -> f32 {
     (4.0 * PI * area / (perimeter * perimeter)) as f32
 }
 
-fn linear_regretion (track: &[(usize, usize)]) -> (f32, f32) {
+fn linear_regretion(track: &[(usize, usize)]) -> (f32, f32) {
     let mut total_x = 0.0;
     let mut total_y = 0.0;
     for (x, y) in track {
@@ -189,12 +191,12 @@ fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> f32 {
     total_off / total_off_x //slope
 }
 
-fn winding_of_path (track: &[(usize, usize)]) -> f32 {
+fn winding_of_path(track: &[(usize, usize)]) -> f32 {
     let avgs = linear_regretion(track);
     let mut mse = 0.0;
 
     let (total_off, total_off_x) = get_totals(&avgs, track);
-    if (total_off / total_off_x).abs() < 10.0 {
+    if (total_off / total_off_x).abs() < 1.0 {
         let slope = total_off / total_off_x;
 
         let b = avgs.1 - avgs.0 * slope;
@@ -205,11 +207,10 @@ fn winding_of_path (track: &[(usize, usize)]) -> f32 {
             mse += diff * diff;
         }
     }
+    //swaps axes to prevent failing mechanic near slope = 90 deg
     else {
         mse = 0.0;
-        println!("prev val: {}", total_off / total_off_x);
         let (total_off_rev, total_off_x_rev) = get_totals_reverse(&avgs, track);
-        println!("new val: {}", total_off_rev / total_off_x_rev);
         let slope = total_off_rev / total_off_x_rev;
 
         let b = avgs.0 - avgs.1 * slope;
@@ -221,7 +222,6 @@ fn winding_of_path (track: &[(usize, usize)]) -> f32 {
         }
         println!("{}", mse);
     };
-    
 
     mse / track.len() as f32
 }
