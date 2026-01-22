@@ -1,7 +1,6 @@
 use geo::{Area, ConvexHull, EuclideanLength};
 use geo_types::{Coord, MultiPoint};
 use std::f64::consts::PI;
-use std::cmp::{min, max};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PartType {
@@ -220,7 +219,6 @@ fn winding_of_path(track: &[(usize, usize)]) -> f32 {
             let diff = *y as f32 - y_pred;
             mse += diff * diff;
         }
-        println!("{}", mse);
     };
 
     mse / track.len() as f32
