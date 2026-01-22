@@ -10,16 +10,6 @@ enum Mode {
     Compound,
 }
 
-impl Mode {
-    fn toggle(&self) -> Self {
-        match self {
-            Mode::Compound => Mode::Compound,
-            Mode::Single => Mode::Combined,
-            Mode::Combined => Mode::Single,
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct MatrixApp {
     matricees: Vec<Tracks>,
@@ -69,7 +59,13 @@ impl MatrixApp {
 
     /// Update the image for current track or combined tracks
     fn update_image(&mut self) {
-
+        if self.current_mode == Mode::Compound {
+            self.init_compound_mode();
+        }
+        else if self.current_mode == Mode::Combined {
+            self.init_combined();
+        }
+        self.update_counter();
         println!("number of tracks: {}", self.matricees[self.current_file].tracks.len());
         let size_x = self.matricees[self.current_file].tracks[self.current_matrix].len();
         let size_y = self.matricees[self.current_file].tracks[self.current_matrix][0].len();
@@ -89,30 +85,14 @@ impl MatrixApp {
             Mode::Single => vec![self.tracks_to_draw[self.current_track].get_track()],
             Mode::Combined => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
             Mode::Compound => {
-                self.all_tracks = Vec::new();
-                self.matricees[self.current_file]
-                    .tracks
-                    .iter()
-                    .map(|p| {
-                        let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
-                        let particles = particle_extractor::extract(p, &mut buffer, 2)
-                            .into_values()
-                            .collect::<Vec<_>>();
-
-                        for (index, part) in particles.iter().enumerate() {
-                            let particle = Particle::new(part.clone());
-                            let part_type = particle.particle_type(p);
-                            println!("particle type {:?} was assigned, index: {}", part_type, index);
-                            self.all_tracks.push(particle);                           
-                        }
-                        particles
-                    })
-                    .flatten()
-                    .collect()
+                    self.init_compound_mode();
+                    self.tracks_to_draw.iter().map(|p| p.get_track()).collect()
                 },
         };
 
         println!("all_tracks length: {}", self.all_tracks.len());
+        println!("priv tracks_to_draw length: {}", tracks_to_draw.len());
+        println!("current_mode: {:?}", self.current_mode);
 
         for track_cells in tracks_to_draw {
             let color = egui::Color32::WHITE;
@@ -154,7 +134,108 @@ impl MatrixApp {
                 self.tracks_to_draw.push(track.clone());
             }
         }   
+        println!("tracks_to-draw_length{}", self.tracks_to_draw.len());
     }
+
+    fn move_track(&mut self) {
+        self.current_track = (self.current_track + 1) % self.tracks_to_draw.len();
+    }
+
+    fn move_track_back(&mut self) {
+        self.current_track = if self.current_track == 0 {
+            self.tracks_to_draw.len() - 1
+        } else {
+            self.current_track - 1
+        };
+    }
+
+    fn matrix_move(&mut self) {
+        if self.current_matrix >= self.matricees[self.current_file].tracks.len() - 1 {
+            self.current_file = (self.current_file + 1) % self.matricees.len();
+            self.current_matrix = 0;
+        }
+        else {
+            self.current_matrix = (self.current_matrix + 1) % self.matricees[self.current_file].tracks.len();
+        }
+    }
+
+    fn matrix_move_back(&mut self) {
+        self.current_matrix = if self.current_matrix == 0 {
+            self.current_file = if self.current_file == 0 {
+                self.matricees.len() - 1
+            }
+            else {
+                self.current_file - 1
+            };
+            self.matricees[self.current_file].tracks.len() - 1
+        } else {
+            self.current_matrix - 1
+        };
+    }
+
+    fn move_file(&mut self) {
+        self.current_file = (self.current_file + 1) % self.matricees.len();
+    }
+
+    fn move_file_back(&mut self) {
+        self.current_file = if self.current_file == 0 {
+                self.matricees.len() - 1
+            }
+            else {
+                self.current_file - 1
+            };
+    }
+
+    fn move_data(&mut self) {
+        match self.current_mode {
+            Mode::Single => self.move_track(),
+            Mode::Combined => self.matrix_move(),
+            Mode::Compound => self.move_file(),
+        }
+        self.update_image();
+    }
+
+    fn move_data_back(&mut self) {
+        match self.current_mode {
+            Mode::Single => self.move_track_back(),
+            Mode::Combined => self.matrix_move_back(),
+            Mode::Compound => self.move_file_back(),
+        }
+        self.update_image();
+    }
+
+    fn init_compound_mode(&mut self) {
+        self.all_tracks = Vec::new();
+        let _mat: Vec<_> = self.matricees[self.current_file]
+            .tracks
+            .iter()
+            .map(|p| {
+                let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
+                let particles = particle_extractor::extract(p, &mut buffer, 2)
+                    .into_values()
+                    .collect::<Vec<_>>();
+
+                for (index, part) in particles.iter().enumerate() {
+                    let particle = Particle::new(part.clone());
+                    let part_type = particle.particle_type(p);
+                    println!("particle type {:?} was assigned, index: {}", part_type, index);
+                    self.all_tracks.push(particle);                           
+                }
+                particles
+            })
+            .flatten()
+            .collect();
+    }
+
+    fn init_combined(&mut self) {
+        self.all_tracks =
+            crate::particle_extractor::extract(&self.matricees[self.current_file].tracks[self.current_matrix], &mut vec![vec![0; crate::SIZE]; crate::SIZE], 2)
+                .values()
+                .map(|t| crate::decoder::Particle::new(t.clone()))
+                .collect();
+    }
+
+
 }
 
 impl eframe::App for MatrixApp {
@@ -167,58 +248,18 @@ impl eframe::App for MatrixApp {
         if ctx.input(|i| i.key_pressed(Key::ArrowRight))
             && !self.tracks_to_draw.is_empty()
         {
-            if self.current_matrix >= self.matricees[self.current_file].tracks.len() - 1 {
-                self.current_file = (self.current_file + 1) % self.matricees.len();
-                self.current_matrix = 0;
-            }
-            else {
-                self.current_matrix = (self.current_matrix + 1) % self.matricees[self.current_file].tracks.len();
-            }
-            self.all_tracks =
-                    crate::particle_extractor::extract(&self.matricees[self.current_file].tracks[self.current_matrix], &mut vec![vec![0; crate::SIZE]; crate::SIZE], 2)
-                        .values()
-                        .map(|t| crate::decoder::Particle::new(t.clone()))
-                        .collect();
-            self.update_counter();
-            self.update_image();            
+            self.move_data();            
         }
 
         if ctx.input(|i| i.key_pressed(Key::ArrowLeft))
             && !self.tracks_to_draw.is_empty()
         {
-            if self.current_mode == Mode::Single {
-                self.current_track = if self.current_track == 0 {
-                    self.tracks_to_draw.len() - 1
-                } else {
-                    self.current_track - 1
-                };
-                self.update_image();
-            }
-            else {
-                self.current_matrix = if self.current_matrix == 0 {
-                    self.current_file = if self.current_file == 0 {
-                        self.matricees.len() - 1
-                    }
-                    else {
-                        self.current_file - 1
-                    };
-                    self.matricees[self.current_file].tracks.len() - 1
-                } else {
-                    self.current_matrix - 1
-                };
-                self.all_tracks =
-                        crate::particle_extractor::extract(&self.matricees[self.current_file].tracks[self.current_matrix], &mut vec![vec![0; crate::SIZE]; crate::SIZE], 2)
-                            .values()
-                            .map(|t| crate::decoder::Particle::new(t.clone()))
-                            .collect();
-                self.update_counter();
-                self.update_image();
-            }
+            self.move_data_back();
         }
 
         if ctx.input(|i| i.key_pressed(Key::M)) {
             if !self.tracks_to_draw.is_empty() {
-                self.current_mode = self.current_mode.toggle();
+                self.current_mode = Mode::Single;
                 self.needs_update = true;
             }
         }
@@ -237,77 +278,35 @@ impl eframe::App for MatrixApp {
 
                 ui.separator();
 
-                if ui.button("◀ Prev").clicked() && self.current_mode == Mode::Single {
-                    self.current_track = if self.current_track == 0 {
-                        self.tracks_to_draw.len() - 1
-                    } else {
-                        self.current_track - 1
-                    };
-                    self.update_image();
+                if ui.button("◀ Prev").clicked(){
+                    self.move_data_back();
                 }
 
-                if ui.button("Next ▶").clicked() && self.current_mode == Mode::Single {
-                    self.current_track = (self.current_track + 1) % self.tracks_to_draw.len();
-                    self.update_image();
+                if ui.button("Next ▶").clicked(){
+                    self.move_data();
                 }
 
-                if ui.button("Toggle Mode").clicked() {
+                if ui.button("Single").clicked() {
                     if !self.tracks_to_draw.is_empty() {
-                        self.current_mode = self.current_mode.toggle();
+                        self.current_mode = Mode::Single;
+                        self.current_track = self.current_track.max(self.tracks_to_draw.len() - 1);
                         self.update_image();
-                        self.update_counter();
                     }
                 }
+
+                if ui.button("Combined").clicked() {
+                    if !self.tracks_to_draw.is_empty() {
+                        self.current_mode = Mode::Combined;
+                        self.update_image();
+                    }
+                }
+
 
                 if ui.button("Compound").clicked() {
                     if !self.tracks_to_draw.is_empty() {
-                        if self.current_mode != Mode::Compound {
-                            self.current_mode = Mode::Compound;
-                        }
-                        else {
-                            self.current_mode = Mode::Combined;
-                        }
+                        self.current_mode = Mode::Compound;
                         self.update_image();
-                        self.update_counter();
                     }
-                }
-
-                if ui.button("◀ Prev file").clicked() && self.current_mode == Mode::Combined { 
-                    self.current_matrix = if self.current_matrix == 0 {
-                        self.current_file = if self.current_file == 0 {
-                            self.matricees.len() - 1
-                        }
-                        else {
-                            self.current_file - 1
-                        };
-                        self.matricees[self.current_file].tracks.len() - 1
-                    } else {
-                        self.current_matrix - 1
-                    };
-                    self.all_tracks =
-                            crate::particle_extractor::extract(&self.matricees[self.current_file].tracks[self.current_matrix], &mut vec![vec![0; crate::SIZE]; crate::SIZE], 2)
-                                .values()
-                                .map(|t| crate::decoder::Particle::new(t.clone()))
-                                .collect();
-                    self.update_counter();
-                    self.update_image();
-                }
-
-                if ui.button("Next file ▶").clicked() && self.current_mode == Mode::Combined {
-                    if self.current_matrix >= self.matricees[self.current_file].tracks.len() - 1 {
-                        self.current_file = (self.current_file + 1) % self.matricees.len();
-                        self.current_matrix = 0;
-                    }
-                    else {
-                        self.current_matrix = (self.current_matrix + 1) % self.matricees[self.current_file].tracks.len();
-                    }
-                    self.all_tracks =
-                            crate::particle_extractor::extract(&self.matricees[self.current_file].tracks[self.current_matrix], &mut vec![vec![0; crate::SIZE]; crate::SIZE], 2)
-                                .values()
-                                .map(|t| crate::decoder::Particle::new(t.clone()))
-                                .collect();
-                    self.update_counter();
-                    self.update_image();
                 }
 
                 ui.separator();
@@ -375,8 +374,8 @@ impl eframe::App for MatrixApp {
                     || response_mu.changed()
                     || response_un.changed()
                 {
-                    self.update_counter();
                     self.update_image();
+                    self.update_counter();
                 }
             });
 
@@ -437,7 +436,6 @@ impl eframe::App for MatrixApp {
                                 .values()
                                 .map(|t| crate::decoder::Particle::new(t.clone()))
                                 .collect();
-                        self.update_counter();
                         self.update_image();
                     } else {
                         self.error = Some("error".to_string());
