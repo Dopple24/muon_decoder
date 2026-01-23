@@ -15,6 +15,7 @@ use std::cell::RefCell;
 #[derive(Clone, Debug)]
 pub struct Particle {
     track: Vec<(usize, usize)>,
+    frame_index: usize,
     total_energy_cache: RefCell<Option<f32>>,
     roundness_cache: RefCell<Option<f32>>,
     winding_cache: RefCell<Option<f32>>,
@@ -22,14 +23,19 @@ pub struct Particle {
 }
 
 impl Particle {
-    pub fn new(track: Vec<(usize, usize)>) -> Self {
+    pub fn new(track: Vec<(usize, usize)>, frame_index: usize) -> Self {
         Particle {
             track,
+            frame_index,
             total_energy_cache: RefCell::new(None),
             roundness_cache: RefCell::new(None),
             winding_cache: RefCell::new(None),
             part_type_cache: RefCell::new(None),
         }
+    }
+
+    pub fn get_frame_index(&self) -> usize {
+        self.frame_index
     }
 
     pub fn get_track(&self) -> Vec<(usize, usize)> {
@@ -114,9 +120,10 @@ impl Particle {
                     /*
                     This check was originally only self.winding() > 1.0
                     Second part of the check was added for the purposes of detecting muons which have made an electron excited
-                    It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 80 or more pixels
+                    It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 100 or more pixels
                     */
-                    if self.winding() > 1.0 && !(self.size() > 80 && self.winding() < 4.0) { 
+                    //consider removing the second check
+                    if self.winding() > 0.4 && !(self.size() > 100 && self.winding() < 4.0) { 
                         PartType::BETA
                     } else {
                         PartType::MUON

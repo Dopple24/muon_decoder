@@ -21,7 +21,6 @@ where
     let grids = match ascii_read(&file) {
         Ok(val) => val,
         Err(y) => {
-            eprintln!("{}", y);
             return Err(y);
         }
     };
@@ -38,14 +37,21 @@ fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
         let row: Vec<f32> = line
             .split_whitespace()
             .map(|val| {
-                val.parse::<f32>()
-                    .map_err(|e| Error::new(io::ErrorKind::InvalidData, e.to_string()))
+                let resp = val.parse::<f32>()
+                    .map_err(|e| Error::new(io::ErrorKind::InvalidData, e.to_string()));
+                match resp {
+                    Ok(value) => Ok(value),
+                    Err(y) => {return Err(y);}
+                }
             })
             .collect::<Result<Vec<f32>, _>>()?;
 
         grid.push(row);
     }
 
+    if grid.len() == 0 {
+        return Err(Error::new(io::ErrorKind::InvalidData, "invalid_data"));
+    }
     if grid[0].len() != SIZE {
         return Err(Error::new(io::ErrorKind::InvalidData, "invalid_data"));
     }
@@ -88,17 +94,14 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Err
 pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>>{
     if !path.is_dir() {
         if let Ok(matrix) = read_lines(path){
-            println!("{:?} is a working file", path);
             let track = Tracks {tracks: matrix, file_path: path.to_path_buf()};
             return Ok(vec![track]);
         }
         else {
-            println!("{:?} is a broken file", path);
             return Err(Error::new(io::ErrorKind::InvalidData, "wrong format").into())
         }
     }
     let paths = std::fs::read_dir(path).unwrap();
-    println!("{:?}", paths);
     let mut files: Vec<Tracks> = Vec::new();
     for file in paths {
         let ok_file = match file {
@@ -107,7 +110,6 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>>{
                 continue;
             }
         };
-        println!("file is: {:?}", ok_file);
         let meta= ok_file.metadata();
         match meta {
             Ok(val) => {
@@ -117,22 +119,13 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>>{
                     }
                 }
                 else if val.is_file() {
-                    println!("attempting to read {:?} as file", ok_file);
                     match read_lines(Path::new(&ok_file.path())) {
                         Ok(matrix) => {
-                            println!("WORKED");
-
                             files.push(Tracks {tracks: matrix, file_path: ok_file.path().to_path_buf()})
-                        },
-                        Err(y) => {
-                            eprintln!("failed: {}", y);
                         }
-
+                        Err(_) => (),
                     }
                 } 
-                else {
-                    println!("the format is: {:?}", val);
-                }
             }
             Err(y) => {
                 eprintln!("meta is wrong: {}", y);
