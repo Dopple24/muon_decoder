@@ -1,14 +1,15 @@
-use geo::{Area, ConvexHull, EuclideanLength};
+use geo::algorithm::line_measures::{Euclidean, Length};
+use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
 use std::f64::consts::PI;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PartType {
-    ALPHA,
-    BETA,
-    GAMMA,
-    MUON,
-    UNKNOWN,
+    Alpha,
+    Beta,
+    Gamma,
+    Muon,
+    Unknown,
 }
 use std::cell::RefCell;
 
@@ -45,7 +46,7 @@ impl Particle {
         self.track.len()
     }
 
-    pub fn total_energy(&self, grid: &Vec<Vec<f32>>) -> f32 {
+    pub fn total_energy(&self, grid: &[Vec<f32>]) -> f32 {
         if let Some(val) = *self.total_energy_cache.borrow() {
             return val;
         }
@@ -56,14 +57,14 @@ impl Particle {
         energy
     }
 
-    pub fn max_energy(&self, grid: &Vec<Vec<f32>>) -> f32 {
+    pub fn max_energy(&self, grid: &[Vec<f32>]) -> f32 {
         self.track
             .iter()
             .map(|&(x, y)| grid[x][y])
             .fold(0.0, |acc, val| acc.max(val))
     }
 
-    pub fn avg_energy(&self, grid: &Vec<Vec<f32>>) -> f32 {
+    pub fn avg_energy(&self, grid: &[Vec<f32>]) -> f32 {
         self.total_energy(grid) / self.size() as f32
     }
 
@@ -88,31 +89,37 @@ impl Particle {
     }
 
     pub fn slope(&self) -> f32 {
-        slope(&linear_regretion(&self.track), &self.track).min(573.0).max(-573.0).atan() * 180.0 / PI as f32
+        slope(&linear_regretion(&self.track), &self.track)
+            .clamp(-573.0, 573.0)
+            .atan()
+            * 180.0
+            / PI as f32
     }
 
-    pub fn particle_type(&self, grid: &Vec<Vec<f32>>) -> PartType {
+    pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
         if let Some(pt) = *self.part_type_cache.borrow() {
             return pt;
         }
 
         let pt = match self.size() {
-            0..4 => return PartType::GAMMA,
+            0..4 => return PartType::Gamma,
             4..30 => {
+                #[allow(clippy::if_same_then_else)]
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
+                    #[allow(clippy::if_same_then_else)]
                     if self.winding() < 1.0 {
-                        PartType::BETA
+                        PartType::Beta
                     } else {
-                        PartType::BETA
+                        PartType::Beta
                     }
                 } else if self.max_energy(grid) > 100.0 {
                     if self.roundness() > 0.4 {
-                        PartType::UNKNOWN //small blob
+                        PartType::Unknown //small blob
                     } else {
-                        PartType::UNKNOWN
+                        PartType::Unknown
                     }
                 } else {
-                    PartType::UNKNOWN
+                    PartType::Unknown
                 }
             }
             30.. => {
@@ -123,17 +130,17 @@ impl Particle {
                     It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 100 or more pixels
                     */
                     //consider removing the second check
-                    if self.winding() > 0.4 && !(self.size() > 100 && self.winding() < 4.0) { 
-                        PartType::BETA
+                    if self.winding() > 0.4 && !(self.size() > 100 && self.winding() < 4.0) {
+                        PartType::Beta
                     } else {
-                        PartType::MUON
+                        PartType::Muon
                     }
                 } else if self.max_energy(grid) < 200.0 {
-                    PartType::UNKNOWN
+                    PartType::Unknown
                 } else if self.roundness() > 0.4 {
-                    PartType::ALPHA
+                    PartType::Alpha
                 } else {
-                    PartType::UNKNOWN
+                    PartType::Unknown
                 }
             }
         };
@@ -155,7 +162,7 @@ fn roundness(points: &[(usize, usize)]) -> f32 {
     let hull = mp.convex_hull();
 
     let area = hull.unsigned_area();
-    let perimeter = hull.exterior().euclidean_length();
+    let perimeter = Euclidean.length(hull.exterior());
 
     (4.0 * PI * area / (perimeter * perimeter)) as f32
 }

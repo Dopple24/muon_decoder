@@ -3,7 +3,7 @@ use std::collections::HashMap;
 /// Extracts connected particles from a grid.
 pub fn extract(
     grid: &[Vec<f32>],
-    id_map: &mut Vec<Vec<usize>>,
+    id_map: &mut [Vec<usize>],
     range: i16,
 ) -> HashMap<usize, Vec<(usize, usize)>> {
     let mut next_id: usize = 1;
@@ -43,11 +43,9 @@ fn build_tracks(
     parent: &mut HashMap<usize, usize>,
 ) -> HashMap<usize, Vec<(usize, usize)>> {
     let mut tracks: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
-    let size_x = id_map.len();
-    let size_y = id_map[0].len();
 
-    for y in 0..size_x {
-        for x in 0..size_y {
+    for (y, id_row) in id_map.iter().enumerate() {
+        for (x, _) in id_row.iter().enumerate() {
             let id = id_map[x][y];
             if id == 0 {
                 continue;

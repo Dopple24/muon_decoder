@@ -1,7 +1,7 @@
+use crate::SIZE;
 use std::fs::File;
 use std::io::{self, BufRead, Error};
 use std::path::{Path, PathBuf};
-use crate::SIZE;
 
 #[derive(Debug)]
 pub struct Tracks {
@@ -37,11 +37,12 @@ fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
         let row: Vec<f32> = line
             .split_whitespace()
             .map(|val| {
-                let resp = val.parse::<f32>()
+                let resp = val
+                    .parse::<f32>()
                     .map_err(|e| Error::new(io::ErrorKind::InvalidData, e.to_string()));
                 match resp {
                     Ok(value) => Ok(value),
-                    Err(y) => {return Err(y);}
+                    Err(y) => Err(y),
                 }
             })
             .collect::<Result<Vec<f32>, _>>()?;
@@ -49,7 +50,7 @@ fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
         grid.push(row);
     }
 
-    if grid.len() == 0 {
+    if grid.is_empty() {
         return Err(Error::new(io::ErrorKind::InvalidData, "invalid_data"));
     }
     if grid[0].len() != SIZE {
@@ -63,7 +64,7 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Err
     let lines = io::BufReader::new(file).lines();
     let mut grid: Vec<Vec<f32>> = vec![vec![0.0; SIZE]; SIZE];
     let mut grids: Vec<Vec<Vec<f32>>> = Vec::new();
-    for lin in lines.flatten() {
+    for lin in lines.map_while(Result::ok) {
         if lin.trim() == "#" {
             grids.push(grid);
             grid = vec![vec![0.0; SIZE]; SIZE];
@@ -91,14 +92,16 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Err
     Ok(grids)
 }
 
-pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>>{
+pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> {
     if !path.is_dir() {
-        if let Ok(matrix) = read_lines(path){
-            let track = Tracks {tracks: matrix, file_path: path.to_path_buf()};
+        if let Ok(matrix) = read_lines(path) {
+            let track = Tracks {
+                tracks: matrix,
+                file_path: path.to_path_buf(),
+            };
             return Ok(vec![track]);
-        }
-        else {
-            return Err(Error::new(io::ErrorKind::InvalidData, "wrong format").into())
+        } else {
+            return Err(Error::new(io::ErrorKind::InvalidData, "wrong format").into());
         }
     }
     let paths = std::fs::read_dir(path).unwrap();
@@ -110,30 +113,28 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>>{
                 continue;
             }
         };
-        let meta= ok_file.metadata();
+        let meta = ok_file.metadata();
         match meta {
             Ok(val) => {
                 if val.is_dir() {
                     if let Ok(fils) = &mut list_dir(&ok_file.path()) {
                         files.append(fils);
                     }
+                } else if val.is_file()
+                    && let Ok(matrix) = read_lines(Path::new(&ok_file.path()))
+                {
+                    files.push(Tracks {
+                        tracks: matrix,
+                        file_path: ok_file.path().to_path_buf(),
+                    })
                 }
-                else if val.is_file() {
-                    match read_lines(Path::new(&ok_file.path())) {
-                        Ok(matrix) => {
-                            files.push(Tracks {tracks: matrix, file_path: ok_file.path().to_path_buf()})
-                        }
-                        Err(_) => (),
-                    }
-                } 
             }
             Err(y) => {
                 eprintln!("meta is wrong: {}", y);
-                continue
+                continue;
             }
         }
-
     }
 
-    return Ok(files);
+    Ok(files)
 }
