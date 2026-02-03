@@ -1,4 +1,5 @@
-use eframe::egui;
+#![windows_subsystem = "windows"]
+use eframe::egui::{self, viewport::IconData};
 
 mod decoder;
 mod file_reader;
@@ -14,12 +15,27 @@ fn main() -> eframe::Result<()> {
 
     // graphics
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]).with_icon(load_icon()),
         ..Default::default()
     };
     eframe::run_native(
-        "256x256 Matrix Viewer",
+        "Muon finder",
         options,
         Box::new(move |_cc| Box::new(graphics::MatrixApp::new(grid, tracks, 2))),
     )
+}
+
+fn load_icon() -> IconData {
+    let image = image::open("assets/image.png")
+        .expect("Failed to open icon")
+        .into_rgba8();
+
+    let (width, height) = image.dimensions();
+    let rgba = image.into_raw();
+
+    IconData {
+        rgba,
+        width,
+        height,
+    }
 }

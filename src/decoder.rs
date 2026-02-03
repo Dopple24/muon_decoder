@@ -90,7 +90,8 @@ impl Particle {
 
     pub fn slope(&self) -> f32 {
         slope(&linear_regretion(&self.track), &self.track)
-            .clamp(-573.0, 573.0)
+            .min(573.0)
+            .max(-573.0)
             .atan()
             * 180.0
             / PI as f32
