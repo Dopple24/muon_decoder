@@ -27,10 +27,16 @@ fn main() -> eframe::Result<()> {
 }
 
 fn load_icon() -> IconData {
-    const ICON: &[u8] = include_bytes!(r"C:\Users\RoubR\muon_decoder\assets\image.png");
-    let image = image::load_from_memory(ICON)
-        .expect("Failed to open icon")
-        .into_rgba8();
+    // generate blank icon on the fly if one is not found
+    let image = match std::fs::read_to_string(r"C:\Users\RoubR\muon_decoder\assets\image.png") {
+        Ok(icon) => image::load_from_memory(&icon.chars().map(|c| c as u8).collect::<Vec<u8>>())
+            .expect("Failed to convert icon on disk"),
+        _ => {
+            eprintln!("Icon file not found, using placeholder");
+            image::DynamicImage::new_rgba8(1, 1)
+        }
+    }
+    .into_rgba8();
 
     let (width, height) = image.dimensions();
     let rgba = image.into_raw();
