@@ -1,5 +1,6 @@
 //#![windows_subsystem = "windows"]
 use eframe::egui::{self, viewport::IconData};
+use std::path::Path;
 
 mod decoder;
 mod file_reader;
@@ -38,8 +39,8 @@ fn main() -> eframe::Result<()> {
 
 fn load_icon() -> Option<IconData> {
     // generate blank icon on the fly if one is not found
-    let image = match std::fs::read_to_string(r"../assets/image.png") {
-        Ok(icon) => image::load_from_memory(&icon.chars().map(|c| c as u8).collect::<Vec<u8>>())
+    let image = match std::fs::read(Path::new(r"assets/image.png")) {
+        Ok(icon) => image::load_from_memory(&icon)
             .expect("Failed to convert icon on disk"),
         _ => {
             eprintln!("Icon file not found, using placeholder");
