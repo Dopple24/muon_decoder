@@ -15,9 +15,19 @@ fn main() -> eframe::Result<()> {
     let tracks: Vec<decoder::Particle> = Vec::new();
 
     // graphics
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]).with_icon(load_icon()),
-        ..Default::default()
+    let options = match load_icon() {
+        Some(icon) => {
+            eframe::NativeOptions {
+                viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]).with_icon(icon),
+                ..Default::default()
+            }
+        },
+        None => {
+            eframe::NativeOptions {
+                viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]),
+                ..Default::default()
+            }
+        }
     };
     eframe::run_native(
         "Muon finder",
@@ -26,18 +36,24 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-fn load_icon() -> IconData {
-    const ICON: &[u8] = include_bytes!(r"C:\Users\RoubR\muon_decoder\assets\image.png");
-    let image = image::load_from_memory(ICON)
-        .expect("Failed to open icon")
-        .into_rgba8();
+fn load_icon() -> Option<IconData> {
+    const ICON: &[u8] = include_bytes!(r"../assets/image.png");
+    let image = match image::load_from_memory(ICON)
+        {
+            Ok(img) => img.into_rgba8(),
+            Err(y) => {
+                println!("{}", y);
+                return None;
+            }
+        };
+        
 
     let (width, height) = image.dimensions();
     let rgba = image.into_raw();
 
-    IconData {
+    Some(IconData {
         rgba,
         width,
         height,
-    }
+    })
 }
