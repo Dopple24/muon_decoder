@@ -9,6 +9,7 @@ pub enum PartType {
     Beta,
     Gamma,
     Muon,
+    SusMuon,
     Unknown,
 }
 use std::cell::RefCell;
@@ -21,6 +22,7 @@ pub struct Particle {
     roundness_cache: RefCell<Option<f32>>,
     winding_cache: RefCell<Option<f32>>,
     part_type_cache: RefCell<Option<PartType>>,
+    let_avg_cache: RefCell<Option<f32>>
 }
 
 impl Particle {
@@ -32,6 +34,7 @@ impl Particle {
             roundness_cache: RefCell::new(None),
             winding_cache: RefCell::new(None),
             part_type_cache: RefCell::new(None),
+            let_avg_cache: RefCell::new(None),
         }
     }
 
@@ -68,12 +71,50 @@ impl Particle {
         self.total_energy(grid) / self.size() as f32
     }
 
+    pub fn let_avg(&self, grid: &[Vec<f32>]) -> f32 {
+        if let Some(val) = *self.let_avg_cache.borrow() {
+            return val;
+        }
+        if self.track.is_empty() {
+            *self.let_avg_cache.borrow_mut() = Some(0.0);
+            return 0.0;
+        }
+
+        let (mut min_x, mut max_x) = (usize::MAX, usize::MIN);
+        let (mut min_y, mut max_y) = (usize::MAX, usize::MIN);
+
+        for &(x, y) in &self.track {
+            min_x = min_x.min(x);
+            max_x = max_x.max(x);
+            min_y = min_y.min(y);
+            max_y = max_y.max(y);
+        }
+
+        let x_diff = (max_x - min_x) as f32 + 1.0;
+        let y_diff = (max_y - min_y) as f32 + 1.0;
+
+        let diagonal = (x_diff.powi(2) + y_diff.powi(2)).sqrt();
+
+
+        if diagonal == 0.0 {
+            return self.total_energy(grid);
+        }
+
+        let let_avg = self.total_energy(grid) / diagonal;
+
+        *self.let_avg_cache.borrow_mut() = Some(let_avg);
+
+        let_avg
+        
+    }
+
+
     pub fn roundness(&self) -> f32 {
         if let Some(val) = *self.roundness_cache.borrow() {
             return val;
         }
 
-        let val = roundness(&self.track); // CALL YOUR HELPER HERE
+        let val = roundness(&self.track);
         *self.roundness_cache.borrow_mut() = Some(val);
         val
     }
@@ -94,7 +135,16 @@ impl Particle {
             .max(-573.0)
             .atan()
             * 180.0
-            / PI as f32
+            / PI as f32 + 90.0
+    }
+
+    pub fn abs_slope(&self) -> f32 {
+        90.0 - f32::abs(slope(&linear_regretion(&self.track), &self.track)
+            .min(573.0)
+            .max(-573.0)
+            .atan()
+            * 180.0
+            / PI as f32 )
     }
 
     pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
@@ -126,13 +176,18 @@ impl Particle {
             30.. => {
                 if self.max_energy(grid) < 200.0 && self.avg_energy(grid) < 40.0 {
                     /*
-                    This check was originally only self.winding() > 1.0
+                    This check was originally only self.winding() > 0.4
                     Second part of the check was added for the purposes of detecting muons which have made an electron excited
                     It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 100 or more pixels
                     */
                     //consider removing the second check
-                    if self.winding() > 0.4 && !(self.size() > 100 && self.winding() < 4.0) {
-                        PartType::Beta
+                    if self.winding() > 0.4 {
+                        if !(self.size() > 100 && self.winding() < 4.0) {
+                            PartType::Beta
+                        }
+                        else {
+                            PartType::SusMuon
+                        }
                     } else {
                         PartType::Muon
                     }

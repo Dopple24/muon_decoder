@@ -1,10 +1,11 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 use eframe::egui::{self, viewport::IconData};
 
 mod decoder;
 mod file_reader;
 mod graphics;
 mod particle_extractor;
+
 
 const SIZE: usize = 256;
 
@@ -26,7 +27,8 @@ fn main() -> eframe::Result<()> {
 }
 
 fn load_icon() -> IconData {
-    let image = image::open("assets/image.png")
+    const ICON: &[u8] = include_bytes!(r"C:\Users\RoubR\muon_decoder\assets\image.png");
+    let image = image::load_from_memory(ICON)
         .expect("Failed to open icon")
         .into_rgba8();
 

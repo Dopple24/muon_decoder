@@ -20,18 +20,20 @@ pub struct Muon {
     frame_index: usize,
     total_energy: f32,
     slope: f32,
+    abs_slope: f32,
     size: usize,
+    let_avg: f32,
 }
 
 #[derive(Debug)]
 pub struct MatrixApp {
     matricees: Vec<Tracks>,
-    file_content: String,
     current_file: usize,
     current_matrix: usize,
     all_tracks: Vec<Particle>,
     tracks_to_draw: Vec<Particle>,
     muons: Vec<Muon>,
+    sus_muons: Vec<Muon>,
     scale: usize,
     current_track: usize,
     image: ColorImage,
@@ -42,6 +44,7 @@ pub struct MatrixApp {
     show_beta: bool,
     show_gamma: bool,
     show_muon: bool,
+    show_sus_muon: bool,
     show_unknown: bool,
 }
 
@@ -52,12 +55,12 @@ impl MatrixApp {
                 tracks: matricees,
                 file_path: PathBuf::new(),
             }],
-            file_content: String::new(),
             current_file: 0,
             current_matrix: 0,
             all_tracks: tracks.clone(),
             tracks_to_draw: tracks,
             muons: Vec::new(),
+            sus_muons: Vec::new(),
             scale,
             current_track: 0,
             image: ColorImage {
@@ -71,6 +74,7 @@ impl MatrixApp {
             show_beta: true,
             show_gamma: true,
             show_muon: true,
+            show_sus_muon: true,
             show_unknown: true,
         };
         app.update_image();
@@ -135,6 +139,7 @@ impl MatrixApp {
             (self.show_beta, PartType::Beta),
             (self.show_gamma, PartType::Gamma),
             (self.show_muon, PartType::Muon),
+            (self.show_sus_muon, PartType::SusMuon),
             (self.show_unknown, PartType::Unknown),
         ];
 
@@ -227,6 +232,7 @@ impl MatrixApp {
     fn init_compound_mode(&mut self) {
         self.all_tracks = Vec::new();
         self.muons.clear();
+        self.sus_muons.clear();
         let _mat: Vec<_> = self.matricees[self.current_file]
             .tracks
             .iter()
@@ -246,7 +252,20 @@ impl MatrixApp {
                             frame_index,
                             total_energy: particle.total_energy(p),
                             slope: particle.slope(),
+                            abs_slope: particle.abs_slope(),
                             size: particle.size(),
+                            let_avg: particle.let_avg(p)
+                        })
+                    }
+                    else if part_type == PartType::SusMuon {
+                        self.sus_muons.push(Muon {
+                            file: self.matricees[self.current_file].file_path.clone(),
+                            frame_index,
+                            total_energy: particle.total_energy(p),
+                            slope: particle.slope(),
+                            abs_slope: particle.abs_slope(),
+                            size: particle.size(),
+                            let_avg: particle.let_avg(p)
                         })
                     }
                     self.all_tracks.push(particle);
@@ -351,6 +370,7 @@ impl eframe::App for MatrixApp {
                     PartType::Beta,
                     PartType::Gamma,
                     PartType::Muon,
+                    PartType::SusMuon,
                     PartType::Unknown,
                 ] {
                     count.insert(p, 0usize);
@@ -373,6 +393,7 @@ impl eframe::App for MatrixApp {
                             ("Beta", PartType::Beta),
                             ("Gamma", PartType::Gamma),
                             ("Muon", PartType::Muon),
+                            ("Sus muon", PartType::SusMuon),
                             ("Unknown", PartType::Unknown),
                         ] {
                             ui.label(label);
@@ -385,12 +406,14 @@ impl eframe::App for MatrixApp {
                 let response_be = ui.checkbox(&mut self.show_beta, "Beta");
                 let response_ga = ui.checkbox(&mut self.show_gamma, "Gamma");
                 let response_mu = ui.checkbox(&mut self.show_muon, "Muon");
+                let response_sm = ui.checkbox(&mut self.show_sus_muon, "Sus muon");
                 let response_un = ui.checkbox(&mut self.show_unknown, "Unknown");
 
                 if response_al.changed()
                     || response_be.changed()
                     || response_ga.changed()
                     || response_mu.changed()
+                    || response_sm.changed()
                     || response_un.changed()
                 {
                     self.update_image();
@@ -403,76 +426,32 @@ impl eframe::App for MatrixApp {
         // ============================
         egui::SidePanel::right("muon_list")
             .resizable(true)
-            .min_width(200.0)
+            .min_width(150.0)
             .show(ctx, |ui| {
+                egui::ScrollArea::new(true).id_source("muons_scroll").show(ui, |ui| {
                 ui.heading("📊 Muons");
-                egui::ScrollArea::new(true).show(ui, |ui| {
                     if ui.button("export").clicked() {
-                        println!("file content: {}", self.file_content);
-                        if let Some(path) = FileDialog::new()
-                            .set_title("Save CSV")
-                            .add_filter("CSV files", &["csv"])
-                            .set_file_name("data.csv")
-                            .save_file()
-                        {
-                            match &mut std::fs::File::create(&path) {
-                                Ok(file) => {
-                                    match writeln!(file, "{}", self.file_content) {
-                                        Ok(_) => (),
-                                        Err(y) => {
-                                            eprintln!("{}", y);
-                                            self.error = Some(y.to_string());
-                                        }
-                                    };
-                                }
-                                Err(y) => {
-                                    eprintln!("{}", y);
-                                    self.error = Some(y.to_string());
-                                }
-                            };
-                        } else {
-                            println!("User cancelled");
+                        let csv = build_csv(&self.muons);
+
+                        if let Err(e) = export_csv(&csv) {
+                            self.error = Some(e);
                         }
                     }
-                    egui::Grid::new("stats_grid")
-                        .num_columns(4)
-                        .spacing([10.0, 6.0])
-                        .show(ui, |ui| {
-                            self.file_content = String::new();
-                            ui.label("slope");
-                            self.file_content.push_str("slope,");
-                            ui.label("total energy");
-                            self.file_content.push_str("total energy,");
-                            ui.label("size");
-                            self.file_content.push_str("size,");
-                            ui.label("frame #");
-                            self.file_content.push_str("frame #,");
-                            ui.label("file");
-                            self.file_content.push_str("file,");
-                            ui.end_row();
-                            self.file_content.push('\n');
-                            for muon in &self.muons {
-                                ui.label(format!("{}", muon.slope));
-                                self.file_content.push_str(&muon.slope.to_string());
-                                self.file_content.push(',');
-                                ui.label(format!("{}", muon.total_energy));
-                                self.file_content.push_str(&muon.total_energy.to_string());
-                                self.file_content.push(',');
-                                ui.label(format!("{}", muon.size));
-                                self.file_content.push_str(&muon.size.to_string());
-                                self.file_content.push(',');
-                                ui.label(format!("{}", muon.frame_index));
-                                self.file_content.push_str(&muon.frame_index.to_string());
-                                self.file_content.push(',');
-                                ui.label(format!("{:?}", muon.file));
-                                self.file_content.push_str(&muon.file.to_string_lossy());
-                                self.file_content.push(',');
-                                ui.end_row();
-                                self.file_content.push('\n');
-                            }
-                        });
+
+                    show_muon_grid(ui, &self.muons);
+                ui.heading("📊 Sus Muons");
+                    if ui.button("export").clicked() {
+                        let csv = build_csv(&self.sus_muons);
+
+                        if let Err(e) = export_csv(&csv) {
+                            self.error = Some(e);
+                        }
+                    }
+
+                    show_muon_grid(ui, &self.sus_muons);
                 });
-            });
+                });
+
 
         // ============================
         // BOTTOM BAR
@@ -517,26 +496,33 @@ impl eframe::App for MatrixApp {
                 ui.add_space(8.0);
 
                 ui.label(format!(
-                    "Track {}/{}\n file: {:?}",
+                    "Track {}/{}\n file here: {}",
                     self.current_track + 1,
                     self.tracks_to_draw.len(),
-                    self.matricees[self.current_file].file_path
+                    self.matricees[self.current_file].file_path.to_string_lossy()
                 ));
 
                 if self.current_mode == Mode::Single {
                     if self.current_track >= self.tracks_to_draw.len() {
-                        self.current_track = self.tracks_to_draw.len() - 1;
+                        self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
-                    let selected_track = &self.tracks_to_draw[self.current_track];
+                    let selected_track = if self.tracks_to_draw.is_empty() {
+                        &Particle::new(Vec::new(), 0)
+                    }
+                    else {
+                        &self.tracks_to_draw[self.current_track]
+                    };
                     ui.label(format!(
-                        "Particle: {:?}\ntrack length: {}\naverage energy: {}\ntotal energy: {}\nslope: {}\nwinding: {}\nframe number: {:?}",
+                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nslope: {}\n abs slope: {}\nwinding: {}\nframe number: {:?}",
                         selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.size(),
                         selected_track.avg_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
+                        selected_track.let_avg(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.total_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.slope(),
+                        selected_track.abs_slope(),
                         selected_track.winding(),
-                        selected_track.get_frame_index(), //incorrect for compound to single
+                        selected_track.get_frame_index(),
                     ));
                 }
 
@@ -572,4 +558,66 @@ impl eframe::App for MatrixApp {
                 });
         }
     }
+    
 }
+fn build_csv(muons: &[Muon]) -> String {
+    let mut content = String::new();
+
+    content.push_str("angle,abs_angle,total energy,size,let,frame#,file\n");
+
+    for muon in muons {
+        content.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            muon.slope,
+            muon.abs_slope,
+            muon.total_energy,
+            muon.size,
+            muon.let_avg,
+            muon.frame_index,
+            muon.file.to_string_lossy()
+        ));
+    }
+
+    content
+}
+fn export_csv(content: &str) -> Result<(), String> {
+    if let Some(path) = FileDialog::new()
+        .set_title("Save CSV")
+        .add_filter("CSV files", &["csv"])
+        .set_file_name("data.csv")
+        .save_file()
+    {
+        let mut file = std::fs::File::create(&path)
+            .map_err(|e| e.to_string())?;
+
+        writeln!(file, "{content}")
+            .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
+    egui::Grid::new(ui.next_auto_id())
+        .spacing([10.0, 6.0])
+        .show(ui, |ui| {
+
+            ui.label("slope");
+            ui.label("total energy");
+            ui.label("size");
+            ui.label("let");
+            ui.label("frame #");
+            ui.label("file");
+            ui.end_row();
+
+            for muon in muons {
+                ui.label(muon.slope.to_string());
+                ui.label(muon.total_energy.to_string());
+                ui.label(muon.size.to_string());
+                ui.label(muon.let_avg.to_string());
+                ui.label(muon.frame_index.to_string());
+                ui.label(format!("{}", muon.file.to_string_lossy()));
+                ui.end_row();
+            }
+        });
+}
+
