@@ -49,8 +49,10 @@ pub struct MatrixApp {
     show_unknown: bool,
 
     show_dialog: bool,
-    input: String,
+    input_depth: String,
+    input_width: String,
     pixel_depth: Option<i32>,
+    pixel_width: Option<i32>,
 }
 
 impl MatrixApp {
@@ -82,8 +84,10 @@ impl MatrixApp {
             show_sus_muon: true,
             show_unknown: true,
             show_dialog: false,
-            input: "30".to_string(),
+            input_depth: "30".to_string(),
+            input_width: "30".to_string(),
             pixel_depth: None,
+            pixel_width: None,
         };
         app.update_image();
         app
@@ -252,7 +256,12 @@ impl MatrixApp {
                     .collect::<Vec<_>>();
 
                 for part in &particles {
-                    let particle = Particle::new(part.clone(), frame_index, self.pixel_depth);
+                    let particle = Particle::new(
+                        part.clone(),
+                        frame_index,
+                        self.pixel_depth,
+                        self.pixel_width,
+                    );
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
                         self.muons.push(Muon {
@@ -265,8 +274,7 @@ impl MatrixApp {
                             size: particle.size(),
                             let_avg: particle.let_avg(p),
                         })
-                    }
-                    else if part_type == PartType::SusMuon {
+                    } else if part_type == PartType::SusMuon {
                         self.sus_muons.push(Muon {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
@@ -275,7 +283,7 @@ impl MatrixApp {
                             abs_slope: particle.abs_slope(),
                             secondary_angle: particle.secondary_angle(),
                             size: particle.size(),
-                            let_avg: particle.let_avg(p)
+                            let_avg: particle.let_avg(p),
                         })
                     }
                     self.all_tracks.push(particle);
@@ -292,7 +300,14 @@ impl MatrixApp {
             2,
         )
         .values()
-        .map(|t| crate::decoder::Particle::new(t.clone(), self.current_matrix, self.pixel_depth))
+        .map(|t| {
+            crate::decoder::Particle::new(
+                t.clone(),
+                self.current_matrix,
+                self.pixel_depth,
+                self.pixel_width,
+            )
+        })
         .collect();
     }
 }
@@ -438,30 +453,31 @@ impl eframe::App for MatrixApp {
             .resizable(true)
             .min_width(150.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::new(true).id_source("muons_scroll").show(ui, |ui| {
-                ui.heading("📊 Muons");
-                    if ui.button("export").clicked() {
-                        let csv = build_csv(&self.muons);
+                egui::ScrollArea::new(true)
+                    .id_source("muons_scroll")
+                    .show(ui, |ui| {
+                        ui.heading("📊 Muons");
+                        if ui.button("export").clicked() {
+                            let csv = build_csv(&self.muons);
 
-                        if let Err(e) = export_csv(&csv) {
-                            self.error = Some(e);
+                            if let Err(e) = export_csv(&csv) {
+                                self.error = Some(e);
+                            }
                         }
-                    }
 
-                    show_muon_grid(ui, &self.muons);
-                ui.heading("📊 Sus Muons");
-                    if ui.button("export").clicked() {
-                        let csv = build_csv(&self.sus_muons);
+                        show_muon_grid(ui, &self.muons);
+                        ui.heading("📊 Sus Muons");
+                        if ui.button("export").clicked() {
+                            let csv = build_csv(&self.sus_muons);
 
-                        if let Err(e) = export_csv(&csv) {
-                            self.error = Some(e);
+                            if let Err(e) = export_csv(&csv) {
+                                self.error = Some(e);
+                            }
                         }
-                    }
 
-                    show_muon_grid(ui, &self.sus_muons);
-                });
-                });
-
+                        show_muon_grid(ui, &self.sus_muons);
+                    });
+            });
 
         // ============================
         // BOTTOM BAR
@@ -472,49 +488,62 @@ impl eframe::App for MatrixApp {
                     self.show_dialog = true;
                 }
                 if self.show_dialog {
-                    egui::Window::new("Enter number")
-                    .collapsible(false)
-                    .resizable(false)
-                    .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                    .show(ctx, |ui| {
+                    egui::Window::new("Enter depth, than width")
+                        .collapsible(false)
+                        .resizable(false)
+                        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                        .show(ctx, |ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.input_depth).hint_text("30"),
+                            );
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.input_width).hint_text("30"),
+                            );
 
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.input)
-                                .hint_text("30") // hint
-                        );
-
-                        ui.horizontal(|ui| {
-                            if ui.button("OK").clicked() {
-                                if let Ok(value) = self.input.parse::<i32>() {
-                                    self.pixel_depth = Some(value);
-                                    self.show_dialog = false;
-                                    if let Some(path) = FileDialog::new().pick_folder()
+                            ui.horizontal(|ui| {
+                                if ui.button("OK").clicked() {
+                                    if let Ok(depth) = self.input_depth.parse::<i32>()
+                                        && let Ok(width) = self.input_width.parse::<i32>()
                                     {
-                                        if let Ok(mat) = list_dir(&path) {
-                                            self.current_track = 0;
-                                            self.matricees = mat;
-                                            let mut id_map = vec![vec![0; crate::SIZE]; crate::SIZE];
-                                            self.all_tracks = crate::particle_extractor::extract(
-                                                &self.matricees[self.current_matrix].tracks[self.current_matrix],
-                                                &mut id_map,
-                                                2,
-                                            )
-                                            .values()
-                                            .map(|t| crate::decoder::Particle::new(t.clone(), self.current_matrix, self.pixel_depth))
-                                            .collect();
-                                            self.update_image();
-                                        } else {
-                                            self.error = Some("error".to_string());
+                                        self.pixel_depth = Some(depth);
+                                        self.pixel_width = Some(width);
+                                        self.show_dialog = false;
+                                        if let Some(path) = FileDialog::new().pick_folder() {
+                                            if let Ok(mat) = list_dir(&path) {
+                                                self.current_track = 0;
+                                                self.matricees = mat;
+                                                let mut id_map =
+                                                    vec![vec![0; crate::SIZE]; crate::SIZE];
+                                                self.all_tracks =
+                                                    crate::particle_extractor::extract(
+                                                        &self.matricees[self.current_matrix].tracks
+                                                            [self.current_matrix],
+                                                        &mut id_map,
+                                                        2,
+                                                    )
+                                                    .values()
+                                                    .map(|t| {
+                                                        crate::decoder::Particle::new(
+                                                            t.clone(),
+                                                            self.current_matrix,
+                                                            self.pixel_depth,
+                                                            self.pixel_width,
+                                                        )
+                                                    })
+                                                    .collect();
+                                                self.update_image();
+                                            } else {
+                                                self.error = Some("error".to_string());
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if ui.button("Cancel").clicked() {
-                                self.show_dialog = false;
-                            }
+                                if ui.button("Cancel").clicked() {
+                                    self.show_dialog = false;
+                                }
+                            });
                         });
-                    });
                 }
             });
         });
@@ -545,7 +574,7 @@ impl eframe::App for MatrixApp {
                         self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
                     let selected_track = if self.tracks_to_draw.is_empty() {
-                        &Particle::new(Vec::new(), 0, self.pixel_depth)
+                        &Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width)
                     }
                     else {
                         &self.tracks_to_draw[self.current_track]
@@ -567,7 +596,7 @@ impl eframe::App for MatrixApp {
 
                 else if self.current_mode == Mode::Combined && !self.tracks_to_draw.is_empty(){
                     ui.label(format!(
-                        "frame number: {}", 
+                        "frame number: {}",
                         &self.tracks_to_draw[self.current_track.min(self.tracks_to_draw.len())].get_frame_index()
                     ));
                 }
@@ -597,7 +626,6 @@ impl eframe::App for MatrixApp {
                 });
         }
     }
-    
 }
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
@@ -627,11 +655,9 @@ fn export_csv(content: &str) -> Result<(), String> {
         .set_file_name("data.csv")
         .save_file()
     {
-        let mut file = std::fs::File::create(&path)
-            .map_err(|e| e.to_string())?;
+        let mut file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
 
-        writeln!(file, "{content}")
-            .map_err(|e| e.to_string())?;
+        writeln!(file, "{content}").map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -640,7 +666,6 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
     egui::Grid::new(ui.next_auto_id())
         .spacing([10.0, 6.0])
         .show(ui, |ui| {
-
             ui.label("angle");
             ui.label("total energy");
             ui.label("size");
@@ -660,4 +685,3 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
             }
         });
 }
-

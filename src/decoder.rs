@@ -17,22 +17,29 @@ use std::cell::RefCell;
 #[derive(Clone, Debug)]
 pub struct Particle {
     pixel_depth: i32,
+    pixel_width: i32,
     track: Vec<(usize, usize)>,
     frame_index: usize,
     total_energy_cache: RefCell<Option<f32>>,
     roundness_cache: RefCell<Option<f32>>,
     winding_cache: RefCell<Option<f32>>,
     part_type_cache: RefCell<Option<PartType>>,
-    let_avg_cache: RefCell<Option<f32>>
+    let_avg_cache: RefCell<Option<f32>>,
 }
 
+const DEFAULT_PIXEL_DEPTH: i32 = 30;
 const DEFAULT_PIXEL_WIDTH: i32 = 30;
 
 impl Particle {
-    pub fn new(track: Vec<(usize, usize)>, frame_index: usize, pixel_depth: Option<i32>) -> Self {
-        println!("{}", pixel_depth.unwrap_or(DEFAULT_PIXEL_WIDTH));
+    pub fn new(
+        track: Vec<(usize, usize)>,
+        frame_index: usize,
+        pixel_depth: Option<i32>,
+        pixel_width: Option<i32>,
+    ) -> Self {
         Particle {
-            pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_WIDTH),
+            pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_DEPTH),
+            pixel_width: pixel_width.unwrap_or(DEFAULT_PIXEL_WIDTH),
             track,
             frame_index,
             total_energy_cache: RefCell::new(None),
@@ -112,13 +119,12 @@ impl Particle {
 
         *self.let_avg_cache.borrow_mut() = Some(let_avg);
 
-        let_avg   
+        let_avg
     }
 
     pub fn secondary_angle(&self) -> f32 {
-        (self.diag_len()/self.pixel_depth as f32 / 1000000.0).atan()
-        * 180.0
-        / PI as f32
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).acos() * 180.0
+            / PI as f32
     }
 
     pub fn roundness(&self) -> f32 {
@@ -143,18 +149,21 @@ impl Particle {
 
     pub fn slope(&self) -> f32 {
         slope(&linear_regretion(&self.track), &self.track)
-            .clamp(-573.0,573.0)
+            .clamp(-573.0, 573.0)
             .atan()
             * 180.0
-            / PI as f32 + 90.0
+            / PI as f32
+            + 90.0
     }
 
     pub fn abs_slope(&self) -> f32 {
-        90.0 - f32::abs(slope(&linear_regretion(&self.track), &self.track)
-            .clamp(-573.0,573.0)
-            .atan()
-            * 180.0
-            / PI as f32 )
+        90.0 - f32::abs(
+            slope(&linear_regretion(&self.track), &self.track)
+                .clamp(-573.0, 573.0)
+                .atan()
+                * 180.0
+                / PI as f32,
+        )
     }
 
     pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
@@ -194,8 +203,7 @@ impl Particle {
                     if self.winding() > 0.4 {
                         if !(self.size() > 100 && self.winding() < 4.0) {
                             PartType::Beta
-                        }
-                        else {
+                        } else {
                             PartType::SusMuon
                         }
                     } else {
