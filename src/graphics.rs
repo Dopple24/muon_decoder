@@ -14,14 +14,28 @@ enum Mode {
     Compound,
 }
 
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum Orientation {
+    NorthSouth,
+    WestEast,
+}
+impl Orientation {
+    fn into_readable(&self) -> String {
+        match self {
+            Self::NorthSouth => "North - South".to_string(),
+            Self::WestEast => "West - East".to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Muon {
     file: PathBuf,
     frame_index: usize,
     total_energy: f32,
-    slope: f32,
-    abs_slope: f32,
-    secondary_angle: f32,
+    north_south_angle: f32,
+    abs_angle_primary: f32,
+    west_east_angle: f32,
     size: usize,
     let_avg: f32,
 }
@@ -41,6 +55,7 @@ pub struct MatrixApp {
     needs_update: bool,
     current_mode: Mode,
     error: Option<String>,
+
     show_alpha: bool,
     show_beta: bool,
     show_gamma: bool,
@@ -53,6 +68,7 @@ pub struct MatrixApp {
     input_width: String,
     pixel_depth: Option<i32>,
     pixel_width: Option<i32>,
+    selected_mode: Orientation,
 }
 
 impl MatrixApp {
@@ -88,6 +104,7 @@ impl MatrixApp {
             input_width: "30".to_string(),
             pixel_depth: None,
             pixel_width: None,
+            selected_mode: Orientation::NorthSouth,
         };
         app.update_image();
         app
@@ -261,6 +278,7 @@ impl MatrixApp {
                         frame_index,
                         self.pixel_depth,
                         self.pixel_width,
+                        self.selected_mode,
                     );
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
@@ -268,9 +286,9 @@ impl MatrixApp {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
-                            slope: particle.slope(),
-                            abs_slope: particle.abs_slope(),
-                            secondary_angle: particle.secondary_angle(),
+                            north_south_angle: particle.north_south_angle(),
+                            abs_angle_primary: particle.abs_angle_primary(),
+                            west_east_angle: particle.west_east_angle(),
                             size: particle.size(),
                             let_avg: particle.let_avg(p),
                         })
@@ -279,9 +297,9 @@ impl MatrixApp {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
-                            slope: particle.slope(),
-                            abs_slope: particle.abs_slope(),
-                            secondary_angle: particle.secondary_angle(),
+                            north_south_angle: particle.north_south_angle(),
+                            abs_angle_primary: particle.abs_angle_primary(),
+                            west_east_angle: particle.west_east_angle(),
                             size: particle.size(),
                             let_avg: particle.let_avg(p),
                         })
@@ -306,6 +324,7 @@ impl MatrixApp {
                 self.current_matrix,
                 self.pixel_depth,
                 self.pixel_width,
+                self.selected_mode,
             )
         })
         .collect();
@@ -488,17 +507,55 @@ impl eframe::App for MatrixApp {
                     self.show_dialog = true;
                 }
                 if self.show_dialog {
-                    egui::Window::new("Enter depth, than width")
+                    egui::Window::new("Enter Depth and Width")
                         .collapsible(false)
                         .resizable(false)
                         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                         .show(ctx, |ui| {
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.input_depth).hint_text("30"),
-                            );
-                            ui.add(
-                                egui::TextEdit::singleline(&mut self.input_width).hint_text("30"),
-                            );
+                            ui.vertical_centered(|ui| {
+                                ui.heading("Dimensions");
+                            });
+
+                            ui.add_space(10.0);
+
+                            ui.horizontal(|ui| {
+                                ui.label("Depth:");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.input_depth)
+                                        .hint_text("e.g. 30")
+                                        .desired_width(100.0),
+                                );
+                            });
+
+                            ui.horizontal(|ui| {
+                                ui.label("Width:");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.input_width)
+                                        .hint_text("e.g. 30")
+                                        .desired_width(100.0),
+                                );
+                            });
+
+                            ui.add_space(10.0);
+
+                            ui.label("Select mode:");
+
+                            egui::ComboBox::from_id_source("mode_selector")
+                                .selected_text(&self.selected_mode.into_readable())
+                                .show_ui(ui, |ui| {
+                                    ui.selectable_value(
+                                        &mut self.selected_mode,
+                                        Orientation::NorthSouth,
+                                        Orientation::NorthSouth.into_readable(),
+                                    );
+                                    ui.selectable_value(
+                                        &mut self.selected_mode,
+                                        Orientation::WestEast,
+                                        Orientation::WestEast.into_readable(),
+                                    );
+                                });
+
+                            ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
                                 if ui.button("OK").clicked() {
@@ -528,6 +585,7 @@ impl eframe::App for MatrixApp {
                                                             self.current_matrix,
                                                             self.pixel_depth,
                                                             self.pixel_width,
+                                                            self.selected_mode,
                                                         )
                                                     })
                                                     .collect();
@@ -574,21 +632,21 @@ impl eframe::App for MatrixApp {
                         self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
                     let selected_track = if self.tracks_to_draw.is_empty() {
-                        &Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width)
+                        &Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
                     }
                     else {
                         &self.tracks_to_draw[self.current_track]
                     };
                     ui.label(format!(
-                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nangle: {}\n abs angle: {}\n secondary angle: {}\nwinding: {}\nframe number: {:?}",
+                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nNorthSouth angle: {}\n abs angle primary: {}\n WestEast angle: {}\nwinding: {}\nframe number: {:?}",
                         selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.size(),
                         selected_track.avg_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.let_avg(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.total_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.slope(),
-                        selected_track.abs_slope(),
-                        selected_track.secondary_angle(),
+                        selected_track.north_south_angle(),
+                        selected_track.abs_angle_primary(),
+                        selected_track.west_east_angle(),
                         selected_track.winding(),
                         selected_track.get_frame_index(),
                     ));
@@ -630,14 +688,15 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content.push_str("angle,abs_angle,secondary_angle,total_energy,size,LET,frame#,file\n");
+    content
+        .push_str("NorthSouth_angle,abs_angle,WestEast_angle,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",
-            muon.slope,
-            muon.abs_slope,
-            muon.secondary_angle,
+            muon.north_south_angle,
+            muon.abs_angle_primary,
+            muon.west_east_angle,
             muon.total_energy,
             muon.size,
             muon.let_avg,
@@ -666,7 +725,9 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
     egui::Grid::new(ui.next_auto_id())
         .spacing([10.0, 6.0])
         .show(ui, |ui| {
-            ui.label("angle");
+            ui.label("NorthSouth angle");
+            ui.label("Abs angle - primary");
+            ui.label("WestEast angle");
             ui.label("total energy");
             ui.label("size");
             ui.label("let");
@@ -675,7 +736,9 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
             ui.end_row();
 
             for muon in muons {
-                ui.label(muon.slope.to_string());
+                ui.label(muon.north_south_angle.to_string());
+                ui.label(muon.abs_angle_primary.to_string());
+                ui.label(muon.west_east_angle.to_string());
                 ui.label(muon.total_energy.to_string());
                 ui.label(muon.size.to_string());
                 ui.label(muon.let_avg.to_string());

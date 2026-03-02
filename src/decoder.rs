@@ -1,3 +1,4 @@
+use crate::graphics::Orientation;
 use geo::algorithm::line_measures::{Euclidean, Length};
 use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
@@ -25,6 +26,7 @@ pub struct Particle {
     winding_cache: RefCell<Option<f32>>,
     part_type_cache: RefCell<Option<PartType>>,
     let_avg_cache: RefCell<Option<f32>>,
+    orientation: Orientation,
 }
 
 const DEFAULT_PIXEL_DEPTH: i32 = 30;
@@ -36,6 +38,7 @@ impl Particle {
         frame_index: usize,
         pixel_depth: Option<i32>,
         pixel_width: Option<i32>,
+        orientation: Orientation,
     ) -> Self {
         Particle {
             pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_DEPTH),
@@ -47,6 +50,7 @@ impl Particle {
             winding_cache: RefCell::new(None),
             part_type_cache: RefCell::new(None),
             let_avg_cache: RefCell::new(None),
+            orientation,
         }
     }
 
@@ -122,7 +126,7 @@ impl Particle {
         let_avg
     }
 
-    pub fn secondary_angle(&self) -> f32 {
+    fn secondary_angle(&self) -> f32 {
         (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).acos() * 180.0
             / PI as f32
     }
@@ -147,7 +151,7 @@ impl Particle {
         val
     }
 
-    pub fn slope(&self) -> f32 {
+    fn angle(&self) -> f32 {
         slope(&linear_regretion(&self.track), &self.track)
             .clamp(-573.0, 573.0)
             .atan()
@@ -156,7 +160,7 @@ impl Particle {
             + 90.0
     }
 
-    pub fn abs_slope(&self) -> f32 {
+    pub fn abs_angle_primary(&self) -> f32 {
         90.0 - f32::abs(
             slope(&linear_regretion(&self.track), &self.track)
                 .clamp(-573.0, 573.0)
@@ -164,6 +168,20 @@ impl Particle {
                 * 180.0
                 / PI as f32,
         )
+    }
+
+    pub fn north_south_angle(&self) -> f32 {
+        match self.orientation {
+            Orientation::NorthSouth => self.angle(),
+            Orientation::WestEast => self.secondary_angle(),
+        }
+    }
+
+    pub fn west_east_angle(&self) -> f32 {
+        match self.orientation {
+            Orientation::NorthSouth => self.secondary_angle(),
+            Orientation::WestEast => self.angle(),
+        }
     }
 
     pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
