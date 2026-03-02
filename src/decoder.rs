@@ -16,6 +16,7 @@ use std::cell::RefCell;
 
 #[derive(Clone, Debug)]
 pub struct Particle {
+    pixel_depth: i32,
     track: Vec<(usize, usize)>,
     frame_index: usize,
     total_energy_cache: RefCell<Option<f32>>,
@@ -25,9 +26,13 @@ pub struct Particle {
     let_avg_cache: RefCell<Option<f32>>
 }
 
+const DEFAULT_PIXEL_WIDTH: i32 = 30;
+
 impl Particle {
-    pub fn new(track: Vec<(usize, usize)>, frame_index: usize) -> Self {
+    pub fn new(track: Vec<(usize, usize)>, frame_index: usize, pixel_depth: Option<i32>) -> Self {
+        println!("{}", pixel_depth.unwrap_or(DEFAULT_PIXEL_WIDTH));
         Particle {
+            pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_WIDTH),
             track,
             frame_index,
             total_energy_cache: RefCell::new(None),
@@ -71,10 +76,7 @@ impl Particle {
         self.total_energy(grid) / self.size() as f32
     }
 
-    pub fn let_avg(&self, grid: &[Vec<f32>]) -> f32 {
-        if let Some(val) = *self.let_avg_cache.borrow() {
-            return val;
-        }
+    fn diag_len(&self) -> f32 {
         if self.track.is_empty() {
             *self.let_avg_cache.borrow_mut() = Some(0.0);
             return 0.0;
@@ -93,8 +95,14 @@ impl Particle {
         let x_diff = (max_x - min_x) as f32 + 1.0;
         let y_diff = (max_y - min_y) as f32 + 1.0;
 
-        let diagonal = (x_diff.powi(2) + y_diff.powi(2)).sqrt();
+        (x_diff.powi(2) + y_diff.powi(2)).sqrt()
+    }
 
+    pub fn let_avg(&self, grid: &[Vec<f32>]) -> f32 {
+        if let Some(val) = *self.let_avg_cache.borrow() {
+            return val;
+        }
+        let diagonal = self.diag_len();
 
         if diagonal == 0.0 {
             return self.total_energy(grid);
@@ -104,10 +112,14 @@ impl Particle {
 
         *self.let_avg_cache.borrow_mut() = Some(let_avg);
 
-        let_avg
-        
+        let_avg   
     }
 
+    pub fn secondary_angle(&self) -> f32 {
+        (self.diag_len()/self.pixel_depth as f32 / 1000000.0).atan()
+        * 180.0
+        / PI as f32
+    }
 
     pub fn roundness(&self) -> f32 {
         if let Some(val) = *self.roundness_cache.borrow() {
