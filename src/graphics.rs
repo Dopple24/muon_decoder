@@ -16,15 +16,30 @@ enum Mode {
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum Orientation {
-    NorthSouth,
-    WestEast,
+    North,
+    South,
+    West,
+    East,
 }
 impl Orientation {
     fn into_readable(&self) -> String {
         match self {
-            Self::NorthSouth => "North - South".to_string(),
-            Self::WestEast => "West - East".to_string(),
+            Self::North => "North".to_string(),
+            Self::South => "South".to_string(),
+            Self::West => "West".to_string(),
+            Self::East => "East".to_string()
         }
+    }
+    pub fn azimuth(&self) -> f32 {
+        match self {
+            Self::North => 0.0,
+            Self::South => 180.0,
+            Self::West => 270.0,
+            Self::East => 90.0
+        }
+    }
+    fn all_values(&self) -> Vec<Orientation> {
+        vec![Self::North, Self::South, Self::West, Self::East]
     }
 }
 
@@ -33,9 +48,10 @@ pub struct Muon {
     file: PathBuf,
     frame_index: usize,
     total_energy: f32,
-    north_south_angle: f32,
+    azimuth: f32,
     abs_angle_primary: f32,
-    west_east_angle: f32,
+    azimuth_offset: f32,
+    zenith: f32,
     size: usize,
     let_avg: f32,
 }
@@ -104,7 +120,7 @@ impl MatrixApp {
             input_width: "30".to_string(),
             pixel_depth: None,
             pixel_width: None,
-            selected_mode: Orientation::NorthSouth,
+            selected_mode: Orientation::North,
         };
         app.update_image();
         app
@@ -286,9 +302,10 @@ impl MatrixApp {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
-                            north_south_angle: particle.north_south_angle(),
+                            azimuth: particle.azimuth(),
+                            azimuth_offset: particle.azimuth_offset(),
                             abs_angle_primary: particle.abs_angle_primary(),
-                            west_east_angle: particle.west_east_angle(),
+                            zenith: particle.zenith(),
                             size: particle.size(),
                             let_avg: particle.let_avg(p),
                         })
@@ -297,9 +314,10 @@ impl MatrixApp {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
-                            north_south_angle: particle.north_south_angle(),
+                            azimuth: particle.azimuth(),
+                            azimuth_offset: particle.azimuth_offset(),
                             abs_angle_primary: particle.abs_angle_primary(),
-                            west_east_angle: particle.west_east_angle(),
+                            zenith: particle.zenith(),
                             size: particle.size(),
                             let_avg: particle.let_avg(p),
                         })
@@ -543,16 +561,13 @@ impl eframe::App for MatrixApp {
                             egui::ComboBox::from_id_source("mode_selector")
                                 .selected_text(&self.selected_mode.into_readable())
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(
-                                        &mut self.selected_mode,
-                                        Orientation::NorthSouth,
-                                        Orientation::NorthSouth.into_readable(),
-                                    );
-                                    ui.selectable_value(
-                                        &mut self.selected_mode,
-                                        Orientation::WestEast,
-                                        Orientation::WestEast.into_readable(),
-                                    );
+                                    Orientation::North.all_values().iter().for_each(|direction| {
+                                        ui.selectable_value(
+                                            &mut self.selected_mode,
+                                            *direction,
+                                            direction.into_readable(),
+                                        );
+                                    });
                                 });
 
                             ui.add_space(15.0);
@@ -636,17 +651,18 @@ impl eframe::App for MatrixApp {
                     }
                     else {
                         &self.tracks_to_draw[self.current_track]
-                    };
+                    }; 
                     ui.label(format!(
-                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nNorthSouth angle: {}\n abs angle primary: {}\n WestEast angle: {}\nwinding: {}\nframe number: {:?}",
+                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
                         selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.size(),
                         selected_track.avg_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.let_avg(&self.matricees[self.current_file].tracks[self.current_matrix]),
                         selected_track.total_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.north_south_angle(),
+                        selected_track.azimuth(),
+                        selected_track.azimuth_offset(),
                         selected_track.abs_angle_primary(),
-                        selected_track.west_east_angle(),
+                        selected_track.zenith(),
                         selected_track.winding(),
                         selected_track.get_frame_index(),
                     ));
@@ -689,14 +705,14 @@ fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
     content
-        .push_str("NorthSouth_angle,abs_angle,WestEast_angle,total_energy,size,LET,frame#,file\n");
+        .push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
             "{},{},{},{},{},{},{},{}\n",
-            muon.north_south_angle,
+            muon.zenith,
             muon.abs_angle_primary,
-            muon.west_east_angle,
+            muon.azimuth,
             muon.total_energy,
             muon.size,
             muon.let_avg,
@@ -725,9 +741,10 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
     egui::Grid::new(ui.next_auto_id())
         .spacing([10.0, 6.0])
         .show(ui, |ui| {
-            ui.label("NorthSouth angle");
-            ui.label("Abs angle - primary");
-            ui.label("WestEast angle");
+            ui.label("Zenith");
+            ui.label("Abs zenith");
+            ui.label("Azimuth");
+            ui.label("azimuth offset");
             ui.label("total energy");
             ui.label("size");
             ui.label("let");
@@ -736,9 +753,10 @@ fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
             ui.end_row();
 
             for muon in muons {
-                ui.label(muon.north_south_angle.to_string());
+                ui.label(muon.zenith.to_string());
                 ui.label(muon.abs_angle_primary.to_string());
-                ui.label(muon.west_east_angle.to_string());
+                ui.label(muon.azimuth.to_string());
+                ui.label(muon.azimuth_offset.to_string());
                 ui.label(muon.total_energy.to_string());
                 ui.label(muon.size.to_string());
                 ui.label(muon.let_avg.to_string());

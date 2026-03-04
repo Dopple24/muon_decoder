@@ -127,7 +127,7 @@ impl Particle {
     }
 
     fn secondary_angle(&self) -> f32 {
-        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).acos() * 180.0
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).asin() * 180.0
             / PI as f32
     }
 
@@ -170,18 +170,16 @@ impl Particle {
         )
     }
 
-    pub fn north_south_angle(&self) -> f32 {
-        match self.orientation {
-            Orientation::NorthSouth => self.angle(),
-            Orientation::WestEast => self.secondary_angle(),
-        }
+    pub fn azimuth(&self) -> f32 {
+        self.orientation.azimuth()
     }
 
-    pub fn west_east_angle(&self) -> f32 {
-        match self.orientation {
-            Orientation::NorthSouth => self.secondary_angle(),
-            Orientation::WestEast => self.angle(),
-        }
+    pub fn zenith(&self) -> f32 {
+        self.angle()
+    }
+
+    pub fn azimuth_offset(&self) -> f32 {
+        self.secondary_angle()
     }
 
     pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
