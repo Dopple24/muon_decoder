@@ -83,7 +83,7 @@ pub struct MatrixApp {
     input_depth: String,
     input_width: String,
     pixel_depth: Option<i32>,
-    pixel_width: Option<i32>,
+    pixel_width: Option<f32>,
     selected_mode: Orientation,
 }
 
@@ -116,8 +116,8 @@ impl MatrixApp {
             show_sus_muon: true,
             show_unknown: true,
             show_dialog: false,
-            input_depth: "30".to_string(),
-            input_width: "30".to_string(),
+            input_depth: crate::decoder::DEFAULT_PIXEL_DEPTH.to_string(),
+            input_width: crate::decoder::DEFAULT_PIXEL_WIDTH.to_string(),
             pixel_depth: None,
             pixel_width: None,
             selected_mode: Orientation::North,
@@ -575,7 +575,7 @@ impl eframe::App for MatrixApp {
                             ui.horizontal(|ui| {
                                 if ui.button("OK").clicked() {
                                     if let Ok(depth) = self.input_depth.parse::<i32>()
-                                        && let Ok(width) = self.input_width.parse::<i32>()
+                                        && let Ok(width) = self.input_width.parse::<f32>()
                                     {
                                         self.pixel_depth = Some(depth);
                                         self.pixel_width = Some(width);

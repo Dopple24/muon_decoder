@@ -18,7 +18,7 @@ use std::cell::RefCell;
 #[derive(Clone, Debug)]
 pub struct Particle {
     pixel_depth: i32,
-    pixel_width: i32,
+    pixel_width: f32,
     track: Vec<(usize, usize)>,
     frame_index: usize,
     total_energy_cache: RefCell<Option<f32>>,
@@ -29,15 +29,15 @@ pub struct Particle {
     orientation: Orientation,
 }
 
-const DEFAULT_PIXEL_DEPTH: i32 = 30;
-const DEFAULT_PIXEL_WIDTH: i32 = 30;
+pub const DEFAULT_PIXEL_DEPTH: i32 = 300;
+pub const DEFAULT_PIXEL_WIDTH: f32 = 54.6875;
 
 impl Particle {
     pub fn new(
         track: Vec<(usize, usize)>,
         frame_index: usize,
         pixel_depth: Option<i32>,
-        pixel_width: Option<i32>,
+        pixel_width: Option<f32>,
         orientation: Orientation,
     ) -> Self {
         Particle {
