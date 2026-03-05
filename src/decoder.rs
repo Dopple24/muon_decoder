@@ -18,7 +18,7 @@ use std::cell::RefCell;
 #[derive(Clone, Debug)]
 pub struct Particle {
     pixel_depth: i32,
-    pixel_width: f32,
+    pub pixel_width: f32,
     track: Vec<(usize, usize)>,
     frame_index: usize,
     total_energy_cache: RefCell<Option<f32>>,

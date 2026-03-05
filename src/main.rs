@@ -6,6 +6,7 @@ mod decoder;
 mod file_reader;
 mod graphics;
 mod particle_extractor;
+mod renderer;
 
 
 const SIZE: usize = 256;
@@ -48,7 +49,7 @@ fn load_icon() -> Option<IconData> {
         }
     }
     .into_rgba8();
-        
+
 
     let (width, height) = image.dimensions();
     let rgba = image.into_raw();

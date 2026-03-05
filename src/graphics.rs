@@ -82,9 +82,10 @@ pub struct MatrixApp {
     show_dialog: bool,
     input_depth: String,
     input_width: String,
-    pixel_depth: Option<i32>,
-    pixel_width: Option<f32>,
-    selected_mode: Orientation,
+    pub pixel_depth: Option<i32>,
+    pub pixel_width: Option<f32>,
+    pub selected_mode: Orientation,
+    renderer_3d: crate::renderer::Renderer3D,
 }
 
 impl MatrixApp {
@@ -121,6 +122,7 @@ impl MatrixApp {
             pixel_depth: None,
             pixel_width: None,
             selected_mode: Orientation::North,
+            renderer_3d: crate::renderer::Renderer3D::new(),
         };
         app.update_image();
         app
@@ -156,6 +158,8 @@ impl MatrixApp {
                 self.tracks_to_draw.iter().map(|p| p.get_track()).collect()
             }
         };
+
+        crate::renderer::update_data(tracks_to_draw.clone(), self);
 
         for track_cells in tracks_to_draw {
             let color = egui::Color32::WHITE;
@@ -374,6 +378,9 @@ impl eframe::App for MatrixApp {
             self.needs_update = false;
         }
 
+        // Display the 3D renderer window
+        self.renderer_3d.show(ctx);
+
         // ============================
         // TOP BAR
         // ============================
@@ -395,6 +402,10 @@ impl eframe::App for MatrixApp {
                     self.current_mode = Mode::Single;
                     self.current_track = self.current_track.min(self.tracks_to_draw.len() - 1);
                     self.update_image();
+                }
+
+                if ui.button("3D View").clicked() {
+                    self.renderer_3d.toggle_window();
                 }
 
                 if ui.button("Combined").clicked() && !self.tracks_to_draw.is_empty() {
@@ -651,7 +662,7 @@ impl eframe::App for MatrixApp {
                     }
                     else {
                         &self.tracks_to_draw[self.current_track]
-                    }; 
+                    };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
                         selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
