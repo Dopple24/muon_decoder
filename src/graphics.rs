@@ -513,7 +513,7 @@ impl eframe::App for MatrixApp {
             .resizable(true)
             .min_width(150.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::new(true)
+                egui::ScrollArea::horizontal()
                     .id_source("muons_scroll")
                     .show(ui, |ui| {
                         ui.heading("📊 Muons");
@@ -525,7 +525,7 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, &self.muons);
+                        show_muon_grid(ui, "muon_grid", &self.muons);
                         ui.heading("📊 Sus Muons");
                         if ui.button("export").clicked() {
                             let csv = build_csv(&self.sus_muons);
@@ -535,9 +535,10 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, &self.sus_muons);
+                        show_muon_grid(ui, "sus_grid", &self.sus_muons);
                     });
             });
+
 
         // ============================
         // BOTTOM BAR
@@ -760,32 +761,73 @@ fn export_csv(content: &str) -> Result<(), String> {
 
     Ok(())
 }
-fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
-    egui::Grid::new(ui.next_auto_id())
-        .spacing([10.0, 6.0])
-        .show(ui, |ui| {
-            ui.label("Zenith");
-            ui.label("Abs zenith");
-            ui.label("Azimuth");
-            ui.label("azimuth offset");
-            ui.label("total energy");
-            ui.label("size");
-            ui.label("let");
-            ui.label("frame #");
-            ui.label("file");
-            ui.end_row();
+use egui_extras::{Column, TableBuilder};
+fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
+    ui.push_id(id, |ui| {
+        TableBuilder::new(ui)
+            .striped(true)
+            .columns(Column::auto(), 9)
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Zenith").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Abs zenith").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Azimuth").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("azimuth offset").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("total energy").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("size").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("let").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("frame #").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("file").wrap(false));
+                });
+            })
+            .body(|body| {
+                body.rows(18.0, muons.len(), |mut row| {
+                    let muon = &muons[row.index()];
 
-            for muon in muons {
-                ui.label(muon.zenith.to_string());
-                ui.label(muon.abs_angle_primary.to_string());
-                ui.label(muon.azimuth.to_string());
-                ui.label(muon.azimuth_offset.to_string());
-                ui.label(muon.total_energy.to_string());
-                ui.label(muon.size.to_string());
-                ui.label(muon.let_avg.to_string());
-                ui.label(muon.frame_index.to_string());
-                ui.label(format!("{}", muon.file.to_string_lossy()));
-                ui.end_row();
-            }
-        });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.zenith.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.abs_angle_primary.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.azimuth.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.azimuth_offset.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.total_energy.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.size.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.let_avg.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.frame_index.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.file.to_string_lossy()).wrap(false));
+                    });
+                });
+            });
+    });
 }

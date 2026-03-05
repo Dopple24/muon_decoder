@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 eframe = "0.26"
+egui_extras = "0.26.0"
 geo = "0.32.0"
 geo-types = "0.7.18"
 image = "0.25.9"
