@@ -1,8 +1,8 @@
 // Copyright pro Jeníka, využití tohoto kódu vyžaduje zmínění Jana Křivského jako spolupracovníka v jakékoliv vědecké či podobné práci
 
-use std::sync::{Mutex, LazyLock};
 use crate::decoder::Particle;
 use eframe::egui;
+use std::sync::{LazyLock, Mutex};
 
 static PARTICLES: LazyLock<Mutex<Vec<DimensionalTrack>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -179,7 +179,13 @@ impl Renderer3D {
             .default_height(600.0)
             .show(ctx, |ui| {
                 // Top panel for controls
-                Self::render_ui_static(ui, &mut self.camera_distance, &mut self.camera_pitch, &mut self.camera_yaw, &mut self.show_backtracks);
+                Self::render_ui_static(
+                    ui,
+                    &mut self.camera_distance,
+                    &mut self.camera_pitch,
+                    &mut self.camera_yaw,
+                    &mut self.show_backtracks,
+                );
 
                 ui.separator();
 
@@ -188,7 +194,14 @@ impl Renderer3D {
                     egui::Vec2::new(ui.available_width(), ui.available_height()),
                     egui::Sense::hover(),
                 );
-                self.paint_3d_view_static(&painter, response.rect, self.camera_distance, self.camera_pitch, self.camera_yaw, self.scale);
+                self.paint_3d_view_static(
+                    &painter,
+                    response.rect,
+                    self.camera_distance,
+                    self.camera_pitch,
+                    self.camera_yaw,
+                    self.scale,
+                );
             });
         self.show_window = show_window;
 
@@ -199,7 +212,13 @@ impl Renderer3D {
         self.show_window = !self.show_window;
     }
 
-    fn render_ui_static(ui: &mut egui::Ui, camera_distance: &mut f32, camera_pitch: &mut f32, camera_yaw: &mut f32, show_backtracks: &mut bool) {
+    fn render_ui_static(
+        ui: &mut egui::Ui,
+        camera_distance: &mut f32,
+        camera_pitch: &mut f32,
+        camera_yaw: &mut f32,
+        show_backtracks: &mut bool,
+    ) {
         ui.label("3D Particle Track Visualization");
         ui.separator();
 
@@ -258,7 +277,15 @@ impl Renderer3D {
         }
     }
 
-    fn paint_3d_view_static(&mut self, painter: &egui::Painter, rect: egui::Rect, camera_distance: f32, camera_pitch: f32, camera_yaw: f32, scale: f32) {
+    fn paint_3d_view_static(
+        &mut self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        camera_distance: f32,
+        camera_pitch: f32,
+        camera_yaw: f32,
+        scale: f32,
+    ) {
         // Draw background
         painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(20, 20, 30));
 
@@ -266,28 +293,59 @@ impl Renderer3D {
         let particles = PARTICLES.lock().unwrap();
 
         // Draw detector surface (256x256 square in XY plane)
-        Self::draw_detector_surface(painter, center, camera_distance, camera_pitch, camera_yaw, scale * 2.0);
+        Self::draw_detector_surface(
+            painter,
+            center,
+            camera_distance,
+            camera_pitch,
+            camera_yaw,
+            scale * 2.0,
+        );
 
         // Draw coordinate axes
-        Self::draw_axes_static(painter, center, camera_distance, camera_pitch, camera_yaw, scale);
+        Self::draw_axes_static(
+            painter,
+            center,
+            camera_distance,
+            camera_pitch,
+            camera_yaw,
+            scale,
+        );
 
         // Draw particle tracks
         for track in particles.iter() {
-            self.draw_track_static(painter, track, center, camera_distance, camera_pitch, camera_yaw, scale);
+            self.draw_track_static(
+                painter,
+                track,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            );
         }
 
         // Draw info text
         painter.text(
             egui::Pos2::new(rect.min.x + 10.0, rect.min.y + 10.0),
             egui::Align2::LEFT_TOP,
-            format!("Camera: Pitch={:.1}°, Yaw={:.1}°, Scale={:.2}x",
-                camera_pitch, camera_yaw, scale),
+            format!(
+                "Camera: Pitch={:.1}°, Yaw={:.1}°, Scale={:.2}x",
+                camera_pitch, camera_yaw, scale
+            ),
             egui::FontId::monospace(12.0),
             egui::Color32::WHITE,
         );
     }
 
-    fn draw_detector_surface(painter: &egui::Painter, center: egui::Pos2, camera_distance: f32, camera_pitch: f32, camera_yaw: f32, scale: f32) {
+    fn draw_detector_surface(
+        painter: &egui::Painter,
+        center: egui::Pos2,
+        camera_distance: f32,
+        camera_pitch: f32,
+        camera_yaw: f32,
+        scale: f32,
+    ) {
         // Draw a 256x256 detector surface as a square in the XY plane
         // Don't apply scale to detector - it's a fixed size reference
         let size = 128.0 * 0.5;
@@ -298,19 +356,48 @@ impl Renderer3D {
             Vector3::new(-size, size, 0.0),
         ];
 
-        let projected: Vec<_> = corners.iter()
-            .filter_map(|corner| Self::project_3d_to_2d_static(corner, center, camera_distance, camera_pitch, camera_yaw, scale))
+        let projected: Vec<_> = corners
+            .iter()
+            .filter_map(|corner| {
+                Self::project_3d_to_2d_static(
+                    corner,
+                    center,
+                    camera_distance,
+                    camera_pitch,
+                    camera_yaw,
+                    scale,
+                )
+            })
             .collect();
 
         if projected.len() == 4 {
-            painter.line_segment([projected[0], projected[1]], egui::Stroke::new(1.5, egui::Color32::GRAY));
-            painter.line_segment([projected[1], projected[2]], egui::Stroke::new(1.5, egui::Color32::GRAY));
-            painter.line_segment([projected[2], projected[3]], egui::Stroke::new(1.5, egui::Color32::GRAY));
-            painter.line_segment([projected[3], projected[0]], egui::Stroke::new(1.5, egui::Color32::GRAY));
+            painter.line_segment(
+                [projected[0], projected[1]],
+                egui::Stroke::new(1.5, egui::Color32::GRAY),
+            );
+            painter.line_segment(
+                [projected[1], projected[2]],
+                egui::Stroke::new(1.5, egui::Color32::GRAY),
+            );
+            painter.line_segment(
+                [projected[2], projected[3]],
+                egui::Stroke::new(1.5, egui::Color32::GRAY),
+            );
+            painter.line_segment(
+                [projected[3], projected[0]],
+                egui::Stroke::new(1.5, egui::Color32::GRAY),
+            );
         }
     }
 
-    fn project_3d_to_2d_static(point: &Vector3, center: egui::Pos2, _camera_distance: f32, camera_pitch: f32, camera_yaw: f32, scale: f32) -> Option<egui::Pos2> {
+    fn project_3d_to_2d_static(
+        point: &Vector3,
+        center: egui::Pos2,
+        _camera_distance: f32,
+        camera_pitch: f32,
+        camera_yaw: f32,
+        scale: f32,
+    ) -> Option<egui::Pos2> {
         let pitch_rad = camera_pitch.to_radians();
         let yaw_rad = camera_yaw.to_radians();
 
@@ -339,15 +426,46 @@ impl Renderer3D {
         Some(egui::Pos2::new(screen_x, screen_y))
     }
 
-    fn draw_track_static(&mut self, painter: &egui::Painter, track: &DimensionalTrack, center: egui::Pos2, camera_distance: f32, camera_pitch: f32, camera_yaw: f32, scale: f32) {
+    #[allow(clippy::too_many_arguments)]
+    fn draw_track_static(
+        &mut self,
+        painter: &egui::Painter,
+        track: &DimensionalTrack,
+        center: egui::Pos2,
+        camera_distance: f32,
+        camera_pitch: f32,
+        camera_yaw: f32,
+        scale: f32,
+    ) {
         // Draw track line as a ray extending from source in the direction (much longer)
         let end = track.source.add(&track.direction.mul(500.0));
         let start = track.source.sub(&track.direction.mul(500.0));
 
         if let (Some(hit_pos), Some(start_pos), Some(end_pos)) = (
-            Self::project_3d_to_2d_static(&track.source, center, camera_distance, camera_pitch, camera_yaw, scale),
-            Self::project_3d_to_2d_static(&start, center, camera_distance, camera_pitch, camera_yaw, scale),
-            Self::project_3d_to_2d_static(&end, center, camera_distance, camera_pitch, camera_yaw, scale),
+            Self::project_3d_to_2d_static(
+                &track.source,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
+            Self::project_3d_to_2d_static(
+                &start,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
+            Self::project_3d_to_2d_static(
+                &end,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
         ) {
             painter.line_segment(
                 [hit_pos, end_pos],
@@ -357,15 +475,29 @@ impl Renderer3D {
             if self.show_backtracks {
                 painter.line_segment(
                     [hit_pos, start_pos],
-                    egui::Stroke::new(1.8, egui::Color32::from_rgba_unmultiplied(173, 216, 230, 20)),
+                    egui::Stroke::new(
+                        1.8,
+                        egui::Color32::from_rgba_unmultiplied(173, 216, 230, 20),
+                    ),
                 );
             }
             // Draw source point at the start of the line (smaller and less visible)
-            painter.circle_filled(hit_pos, 2.0, egui::Color32::from_rgba_unmultiplied(50, 255, 0, 100));
+            painter.circle_filled(
+                hit_pos,
+                2.0,
+                egui::Color32::from_rgba_unmultiplied(50, 255, 0, 100),
+            );
         }
     }
 
-    fn draw_axes_static(painter: &egui::Painter, center: egui::Pos2, camera_distance: f32, camera_pitch: f32, camera_yaw: f32, scale: f32) {
+    fn draw_axes_static(
+        painter: &egui::Painter,
+        center: egui::Pos2,
+        camera_distance: f32,
+        camera_pitch: f32,
+        camera_yaw: f32,
+        scale: f32,
+    ) {
         let origin = Vector3::new(0.0, 0.0, 0.0);
         let x_axis = Vector3::new(50.0, 0.0, 0.0);
         let y_axis = Vector3::new(0.0, 50.0, 0.0);
@@ -373,8 +505,22 @@ impl Renderer3D {
 
         // X axis (red)
         if let (Some(o), Some(x)) = (
-            Self::project_3d_to_2d_static(&origin, center, camera_distance, camera_pitch, camera_yaw, scale),
-            Self::project_3d_to_2d_static(&x_axis, center, camera_distance, camera_pitch, camera_yaw, scale),
+            Self::project_3d_to_2d_static(
+                &origin,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
+            Self::project_3d_to_2d_static(
+                &x_axis,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
         ) {
             painter.line_segment(
                 [o, x],
@@ -384,8 +530,22 @@ impl Renderer3D {
 
         // Y axis (green)
         if let (Some(o), Some(y)) = (
-            Self::project_3d_to_2d_static(&origin, center, camera_distance, camera_pitch, camera_yaw, scale),
-            Self::project_3d_to_2d_static(&y_axis, center, camera_distance, camera_pitch, camera_yaw, scale),
+            Self::project_3d_to_2d_static(
+                &origin,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
+            Self::project_3d_to_2d_static(
+                &y_axis,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
         ) {
             painter.line_segment(
                 [o, y],
@@ -395,8 +555,22 @@ impl Renderer3D {
 
         // Z axis (blue)
         if let (Some(o), Some(z)) = (
-            Self::project_3d_to_2d_static(&origin, center, camera_distance, camera_pitch, camera_yaw, scale),
-            Self::project_3d_to_2d_static(&z_axis, center, camera_distance, camera_pitch, camera_yaw, scale),
+            Self::project_3d_to_2d_static(
+                &origin,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
+            Self::project_3d_to_2d_static(
+                &z_axis,
+                center,
+                camera_distance,
+                camera_pitch,
+                camera_yaw,
+                scale,
+            ),
         ) {
             painter.line_segment(
                 [o, z],
@@ -407,17 +581,20 @@ impl Renderer3D {
 }
 
 pub fn update_data(tracks: Vec<Vec<(usize, usize)>>, app_borrow: &mut crate::graphics::MatrixApp) {
-    let particles = tracks.into_iter().map(|t| {
-        let particle = Particle::new(
-            t,
-            0,
-            app_borrow.pixel_depth,
-            app_borrow.pixel_width,
-            app_borrow.selected_mode,
-        );
+    let particles = tracks
+        .into_iter()
+        .map(|t| {
+            let particle = Particle::new(
+                t,
+                0,
+                app_borrow.pixel_depth,
+                app_borrow.pixel_width,
+                app_borrow.selected_mode,
+            );
 
-        DimensionalTrack::from_particle(particle)
-    }).collect::<Vec<DimensionalTrack>>();
+            DimensionalTrack::from_particle(particle)
+        })
+        .collect::<Vec<DimensionalTrack>>();
 
     {
         *PARTICLES.lock().unwrap() = particles;
