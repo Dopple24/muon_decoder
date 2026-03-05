@@ -13,7 +13,6 @@ pub enum PartType {
     SusMuon,
     Unknown,
 }
-use std::cell::RefCell;
 
 #[derive(Clone, Debug)]
 pub struct Particle {
@@ -21,11 +20,11 @@ pub struct Particle {
     pub pixel_width: f32,
     track: Vec<(usize, usize)>,
     frame_index: usize,
-    total_energy_cache: RefCell<Option<f32>>,
-    roundness_cache: RefCell<Option<f32>>,
-    winding_cache: RefCell<Option<f32>>,
-    part_type_cache: RefCell<Option<PartType>>,
-    let_avg_cache: RefCell<Option<f32>>,
+    total_energy_cache: Option<f32>,
+    roundness_cache: Option<f32>,
+    winding_cache: Option<f32>,
+    part_type_cache: Option<PartType>,
+    let_avg_cache: Option<f32>,
     orientation: Orientation,
 }
 
@@ -45,11 +44,11 @@ impl Particle {
             pixel_width: pixel_width.unwrap_or(DEFAULT_PIXEL_WIDTH),
             track,
             frame_index,
-            total_energy_cache: RefCell::new(None),
-            roundness_cache: RefCell::new(None),
-            winding_cache: RefCell::new(None),
-            part_type_cache: RefCell::new(None),
-            let_avg_cache: RefCell::new(None),
+            total_energy_cache: None,
+            roundness_cache: None,
+            winding_cache: None,
+            part_type_cache: None,
+            let_avg_cache: None,
             orientation,
         }
     }
@@ -65,14 +64,14 @@ impl Particle {
         self.track.len()
     }
 
-    pub fn total_energy(&self, grid: &[Vec<f32>]) -> f32 {
-        if let Some(val) = *self.total_energy_cache.borrow() {
+    pub fn total_energy(&mut self, grid: &[Vec<f32>]) -> f32 {
+        if let Some(val) = self.total_energy_cache {
             return val;
         }
 
         let energy: f32 = self.track.iter().map(|&(x, y)| grid[x][y]).sum();
 
-        *self.total_energy_cache.borrow_mut() = Some(energy);
+        self.total_energy_cache = Some(energy);
         energy
     }
 
@@ -83,13 +82,13 @@ impl Particle {
             .fold(0.0, |acc, val| acc.max(val))
     }
 
-    pub fn avg_energy(&self, grid: &[Vec<f32>]) -> f32 {
+    pub fn avg_energy(&mut self, grid: &[Vec<f32>]) -> f32 {
         self.total_energy(grid) / self.size() as f32
     }
 
-    fn diag_len(&self) -> f32 {
+    fn diag_len(&mut self) -> f32 {
         if self.track.is_empty() {
-            *self.let_avg_cache.borrow_mut() = Some(0.0);
+            self.let_avg_cache = Some(0.0);
             return 0.0;
         }
 
@@ -109,8 +108,8 @@ impl Particle {
         (x_diff.powi(2) + y_diff.powi(2)).sqrt()
     }
 
-    pub fn let_avg(&self, grid: &[Vec<f32>]) -> f32 {
-        if let Some(val) = *self.let_avg_cache.borrow() {
+    pub fn let_avg(&mut self, grid: &[Vec<f32>]) -> f32 {
+        if let Some(val) = self.let_avg_cache {
             return val;
         }
         let diagonal = self.diag_len();
@@ -121,33 +120,33 @@ impl Particle {
 
         let let_avg = self.total_energy(grid) / diagonal;
 
-        *self.let_avg_cache.borrow_mut() = Some(let_avg);
+        self.let_avg_cache = Some(let_avg);
 
         let_avg
     }
 
-    fn secondary_angle(&self) -> f32 {
+    fn secondary_angle(&mut self) -> f32 {
         (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).asin() * 180.0
             / PI as f32
     }
 
-    pub fn roundness(&self) -> f32 {
-        if let Some(val) = *self.roundness_cache.borrow() {
+    pub fn roundness(&mut self) -> f32 {
+        if let Some(val) = self.roundness_cache {
             return val;
         }
 
         let val = roundness(&self.track);
-        *self.roundness_cache.borrow_mut() = Some(val);
+        self.roundness_cache = Some(val);
         val
     }
 
-    pub fn winding(&self) -> f32 {
-        if let Some(val) = *self.winding_cache.borrow() {
+    pub fn winding(&mut self) -> f32 {
+        if let Some(val) = self.winding_cache {
             return val;
         }
 
         let val = winding_of_path(&self.track).abs(); // CALL YOUR HELPER HERE
-        *self.winding_cache.borrow_mut() = Some(val);
+        self.winding_cache = Some(val);
         val
     }
 
@@ -178,12 +177,12 @@ impl Particle {
         self.angle()
     }
 
-    pub fn azimuth_offset(&self) -> f32 {
+    pub fn azimuth_offset(&mut self) -> f32 {
         self.secondary_angle()
     }
 
-    pub fn particle_type(&self, grid: &[Vec<f32>]) -> PartType {
-        if let Some(pt) = *self.part_type_cache.borrow() {
+    pub fn particle_type(&mut self, grid: &[Vec<f32>]) -> PartType {
+        if let Some(pt) = self.part_type_cache {
             return pt;
         }
 
@@ -235,7 +234,7 @@ impl Particle {
             }
         };
 
-        *self.part_type_cache.borrow_mut() = Some(pt);
+        self.part_type_cache = Some(pt);
         pt
     }
 }

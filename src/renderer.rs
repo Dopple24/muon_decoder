@@ -81,7 +81,7 @@ struct DimensionalTrack {
 }
 
 impl DimensionalTrack {
-    fn from_particle(particle: Particle) -> Self {
+    fn from_particle(mut particle: Particle) -> Self {
         if particle.get_track().is_empty() {
             return Self::default();
         }

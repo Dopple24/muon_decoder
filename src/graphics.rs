@@ -6,6 +6,8 @@ use crate::{
 use eframe::egui::{self, ColorImage};
 use rfd::FileDialog;
 use std::{collections::HashMap, io::Write, path::PathBuf};
+use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Mode {
@@ -154,7 +156,8 @@ impl MatrixApp {
             Mode::Single => vec![self.tracks_to_draw[self.current_track].get_track()],
             Mode::Combined => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
             Mode::Compound => {
-                self.init_compound_mode();
+                // WHY are we compounding ts again??
+                // self.init_compound_mode();
                 self.tracks_to_draw.iter().map(|p| p.get_track()).collect()
             }
         };
@@ -194,7 +197,7 @@ impl MatrixApp {
 
         self.tracks_to_draw.clear();
 
-        for track in &self.all_tracks {
+        for track in &mut self.all_tracks {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track.particle_type(
@@ -282,18 +285,23 @@ impl MatrixApp {
         self.all_tracks = Vec::new();
         self.muons.clear();
         self.sus_muons.clear();
-        let _mat: Vec<_> = self.matricees[self.current_file]
+
+        let all_buf: Arc<Mutex<Vec<Particle>>> = Arc::new(Mutex::new(Vec::new()));
+        let muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
+        let sus_muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
+
+        self.matricees[self.current_file]
             .tracks
             .iter()
             .enumerate()
-            .flat_map(|(frame_index, p)| {
+            .par_bridge().into_par_iter().for_each(|(frame_index, p)| {
                 let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
                 let particles = particle_extractor::extract(p, &mut buffer, 2)
                     .into_values()
                     .collect::<Vec<_>>();
 
                 for part in &particles {
-                    let particle = Particle::new(
+                    let mut particle = Particle::new(
                         part.clone(),
                         frame_index,
                         self.pixel_depth,
@@ -302,7 +310,7 @@ impl MatrixApp {
                     );
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
-                        self.muons.push(Muon {
+                        muons_buf.lock().unwrap().push(Muon {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
@@ -314,7 +322,7 @@ impl MatrixApp {
                             let_avg: particle.let_avg(p),
                         })
                     } else if part_type == PartType::SusMuon {
-                        self.sus_muons.push(Muon {
+                        sus_muons_buf.lock().unwrap().push(Muon {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
@@ -326,11 +334,13 @@ impl MatrixApp {
                             let_avg: particle.let_avg(p),
                         })
                     }
-                    self.all_tracks.push(particle);
+                    all_buf.lock().unwrap().push(particle);
                 }
-                particles
-            })
-            .collect();
+            });
+
+        self.all_tracks.extend(all_buf.lock().unwrap().drain(..));
+        self.muons.extend(muons_buf.lock().unwrap().drain(..));
+        self.sus_muons.extend(sus_muons_buf.lock().unwrap().drain(..));
     }
 
     fn init_combined(&mut self) {
@@ -449,7 +459,7 @@ impl eframe::App for MatrixApp {
                     count.insert(p, 0usize);
                 }
 
-                for particle in &self.tracks_to_draw {
+                for particle in &mut self.tracks_to_draw {
                     *count
                         .get_mut(&particle.particle_type(
                             &self.matricees[self.current_file].tracks[self.current_matrix],
@@ -490,7 +500,8 @@ impl eframe::App for MatrixApp {
                     || response_un.changed()
                 {
                     self.update_image();
-                    self.update_counter();
+                    // this is redundant, update_image() already calls update_counter itself()
+                    // self.update_counter();
                 }
             });
 
@@ -658,10 +669,10 @@ impl eframe::App for MatrixApp {
                         self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
                     let selected_track = if self.tracks_to_draw.is_empty() {
-                        &Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
+                        &mut Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
                     }
                     else {
-                        &self.tracks_to_draw[self.current_track]
+                        &mut self.tracks_to_draw[self.current_track]
                     };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
