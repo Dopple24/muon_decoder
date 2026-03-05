@@ -189,12 +189,31 @@ impl Particle {
 
         let pt = match self.size() {
             0..4 => return PartType::Gamma,
-            4..30 => {
+            4..20 => {
                 #[allow(clippy::if_same_then_else)]
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
                     #[allow(clippy::if_same_then_else)]
                     if self.winding() < 1.0 {
                         PartType::Beta
+                    } else {
+                        PartType::Beta
+                    }
+                } else if self.max_energy(grid) > 100.0 {
+                    if self.roundness() > 0.4 {
+                        PartType::Unknown //small blob
+                    } else {
+                        PartType::Unknown
+                    }
+                } else {
+                    PartType::Unknown
+                }
+            }
+            20..30 => {
+                #[allow(clippy::if_same_then_else)]
+                if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
+                    #[allow(clippy::if_same_then_else)]
+                    if self.winding() < 0.25 { //consider 0.2
+                        PartType::Muon
                     } else {
                         PartType::Beta
                     }
