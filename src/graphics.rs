@@ -134,7 +134,12 @@ impl MatrixApp {
     fn update_image(&mut self) {
         if self.current_mode == Mode::Compound {
             self.init_compound_mode();
-        } else if self.current_mode == Mode::Combined {
+        } else {
+            // clear unused memory (we recalculate it again anyway)
+            self.muons.clear();
+            self.sus_muons.clear();
+        }
+        if self.current_mode == Mode::Combined {
             self.init_combined();
         }
         self.update_counter();
@@ -282,10 +287,6 @@ impl MatrixApp {
     }
 
     fn init_compound_mode(&mut self) {
-        self.all_tracks = Vec::new();
-        self.muons.clear();
-        self.sus_muons.clear();
-
         let all_buf: Arc<Mutex<Vec<Particle>>> = Arc::new(Mutex::new(Vec::new()));
         let muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
         let sus_muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
@@ -338,9 +339,9 @@ impl MatrixApp {
                 }
             });
 
-        self.all_tracks.extend(all_buf.lock().unwrap().drain(..));
-        self.muons.extend(muons_buf.lock().unwrap().drain(..));
-        self.sus_muons.extend(sus_muons_buf.lock().unwrap().drain(..));
+        self.all_tracks = std::mem::take(&mut *all_buf.lock().unwrap());
+        self.muons = std::mem::take(&mut *muons_buf.lock().unwrap());
+        self.sus_muons = std::mem::take(&mut *sus_muons_buf.lock().unwrap());
     }
 
     fn init_combined(&mut self) {
