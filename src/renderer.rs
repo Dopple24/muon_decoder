@@ -100,11 +100,10 @@ impl DimensionalTrack {
         // Convert pixel coordinates to world coordinates
         // In 2D view: X is horizontal (left-right), Y is vertical (top-bottom)
         // In 3D view at pitch=0, yaw=0: X is horizontal (right/East), Z is horizontal (away/South), Y is vertical (up)
-        // So: 2D X -> 3D Z, 2D Y -> 3D X (and keep Y as vertical position)
-        //
-        // transform: -pi/2
-        let source_x = avg_y_pixel - 128.0;
-        let source_y = -avg_x_pixel + 128.0;
+        // Apply 90 degree clockwise rotation: (x,y) -> (y, -x)
+        // Then transform: 2D X -> 3D Z, 2D Y -> 3D X
+        let source_x = avg_x_pixel - 128.0;
+        let source_y = avg_y_pixel - 128.0;
         let source_z = 0.0;
 
         let source = Vector3::new(source_x, source_y, source_z);

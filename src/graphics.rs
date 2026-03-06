@@ -169,8 +169,9 @@ impl MatrixApp {
             for (x, y) in track_cells {
                 for dx in 0..self.scale {
                     for dy in 0..self.scale {
-                        let px = x * self.scale + dx;
-                        let py = y * self.scale + dy;
+                        // Rotate 90 degrees counter-clockwise: (x,y) -> (y, size_x-x)
+                        let px = (size_y - 1 - y) * self.scale + dy;
+                        let py = x * self.scale + dx;
                         if px < img_x && py < img_y {
                             pixels[px * img_y + py] = color;
                         }
