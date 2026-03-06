@@ -24,12 +24,12 @@ pub enum Orientation {
     East,
 }
 impl Orientation {
-    fn into_readable(&self) -> String {
+    fn into_readable(self) -> String {
         match self {
             Self::North => "North".to_string(),
             Self::South => "South".to_string(),
             Self::West => "West".to_string(),
-            Self::East => "East".to_string()
+            Self::East => "East".to_string(),
         }
     }
     pub fn azimuth(&self) -> f32 {
@@ -37,7 +37,7 @@ impl Orientation {
             Self::North => 0.0,
             Self::South => 180.0,
             Self::West => 270.0,
-            Self::East => 90.0
+            Self::East => 90.0,
         }
     }
     fn all_values(&self) -> Vec<Orientation> {
@@ -567,7 +567,6 @@ impl eframe::App for MatrixApp {
                     });
             });
 
-
         // ============================
         // BOTTOM BAR
         // ============================
@@ -611,55 +610,56 @@ impl eframe::App for MatrixApp {
                             ui.label("Select mode:");
 
                             egui::ComboBox::from_id_source("mode_selector")
-                                .selected_text(&self.selected_mode.into_readable())
+                                .selected_text(self.selected_mode.into_readable())
                                 .show_ui(ui, |ui| {
-                                    Orientation::North.all_values().iter().for_each(|direction| {
-                                        ui.selectable_value(
-                                            &mut self.selected_mode,
-                                            *direction,
-                                            direction.into_readable(),
-                                        );
-                                    });
+                                    Orientation::North
+                                        .all_values()
+                                        .iter()
+                                        .for_each(|direction| {
+                                            ui.selectable_value(
+                                                &mut self.selected_mode,
+                                                *direction,
+                                                direction.into_readable(),
+                                            );
+                                        });
                                 });
 
                             ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
-                                if ui.button("OK").clicked() {
-                                    if let Ok(depth) = self.input_depth.parse::<i32>()
-                                        && let Ok(width) = self.input_width.parse::<f32>()
-                                    {
-                                        self.pixel_depth = Some(depth);
-                                        self.pixel_width = Some(width);
-                                        self.show_dialog = false;
-                                        if let Some(path) = FileDialog::new().pick_folder() {
-                                            if let Ok(mat) = list_dir(&path) {
-                                                self.current_track = 0;
-                                                self.matricees = mat;
-                                                let mut id_map =
-                                                    vec![vec![0; crate::SIZE]; crate::SIZE];
-                                                self.all_tracks =
-                                                    crate::particle_extractor::extract(
-                                                        &self.matricees[self.current_matrix].tracks
-                                                            [self.current_matrix],
-                                                        &mut id_map,
-                                                        2,
-                                                    )
-                                                    .values()
-                                                    .map(|t| {
-                                                        crate::decoder::Particle::new(
-                                                            t.clone(),
-                                                            self.current_matrix,
-                                                            self.pixel_depth,
-                                                            self.pixel_width,
-                                                            self.selected_mode,
-                                                        )
-                                                    })
-                                                    .collect();
-                                                self.update_image();
-                                            } else {
-                                                self.error = Some("error".to_string());
-                                            }
+                                if ui.button("OK").clicked()
+                                    && let Ok(depth) = self.input_depth.parse::<i32>()
+                                    && let Ok(width) = self.input_width.parse::<f32>()
+                                {
+                                    self.pixel_depth = Some(depth);
+                                    self.pixel_width = Some(width);
+                                    self.show_dialog = false;
+                                    if let Some(path) = FileDialog::new().pick_folder() {
+                                        if let Ok(mat) = list_dir(&path) {
+                                            self.current_track = 0;
+                                            self.matricees = mat;
+                                            let mut id_map =
+                                                vec![vec![0; crate::SIZE]; crate::SIZE];
+                                            self.all_tracks = crate::particle_extractor::extract(
+                                                &self.matricees[self.current_matrix].tracks
+                                                    [self.current_matrix],
+                                                &mut id_map,
+                                                2,
+                                            )
+                                            .values()
+                                            .map(|t| {
+                                                crate::decoder::Particle::new(
+                                                    t.clone(),
+                                                    self.current_matrix,
+                                                    self.pixel_depth,
+                                                    self.pixel_width,
+                                                    self.selected_mode,
+                                                )
+                                            })
+                                            .collect();
+                                            self.update_image();
+                                        } else {
+                                            self.error = Some("error".to_string());
                                         }
                                     }
                                 }
@@ -756,8 +756,7 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content
-        .push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
+    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
@@ -913,7 +912,8 @@ fn sort_muons_in_place(muons: &mut [Muon], column: Option<usize>, ascending: boo
                 if ascending {
                     muons.sort_by(|a, b| compare_f32(a.abs_angle_primary, b.abs_angle_primary));
                 } else {
-                    muons.sort_by(|a, b| compare_f32_desc(a.abs_angle_primary, b.abs_angle_primary));
+                    muons
+                        .sort_by(|a, b| compare_f32_desc(a.abs_angle_primary, b.abs_angle_primary));
                 }
             }
             2 => {
