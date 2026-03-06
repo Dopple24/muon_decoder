@@ -1,19 +1,20 @@
+use crate::SIZE;
 use std::collections::HashMap;
 
 /// Extracts connected particles from a grid.
 pub fn extract(
-    grid: &[Vec<f32>],
+    grid: &[f32],
     id_map: &mut [Vec<usize>],
     range: i16,
 ) -> HashMap<usize, Vec<(usize, usize)>> {
     let mut next_id: usize = 1;
     let mut parent: HashMap<usize, usize> = HashMap::new();
-    let size_x = grid.len();
-    let size_y = grid[0].len();
+    let size_x = SIZE;
+    let size_y = SIZE;
 
     for y in 0..size_x {
         for x in 0..size_y {
-            if grid[x][y] == 0.0 {
+            if grid[x * SIZE + y] == 0.0 {
                 continue;
             }
 
@@ -83,13 +84,13 @@ fn union(a: usize, b: usize, parent: &mut HashMap<usize, usize>) {
 /// Checks all previously uncovered cells in range
 pub fn check_surroundings(
     location: &(usize, usize),
-    grid: &[Vec<f32>],
+    grid: &[f32],
     id_map: &[Vec<usize>],
     range: i16,
 ) -> Vec<usize> {
     let mut found_ids: Vec<usize> = Vec::new();
-    let size_x = grid.len() as i16;
-    let size_y = grid[0].len() as i16;
+    let size_x = SIZE;
+    let size_y = SIZE;
 
     let (lx, ly) = (location.0 as i16, location.1 as i16);
 
@@ -122,21 +123,21 @@ pub fn check_cell(
     loc: (i16, i16),
     dx: i16,
     dy: i16,
-    size_x: i16,
-    size_y: i16,
-    grid: &[Vec<f32>],
+    size_x: usize,
+    size_y: usize,
+    grid: &[f32],
     id_map: &[Vec<usize>],
 ) -> Option<usize> {
     let x = loc.0 + dx;
     let y = loc.1 + dy;
 
-    if x < 0 || y < 0 || x >= size_x || y >= size_y {
+    if x < 0 || y < 0 || x >= size_x as i16 || y >= size_y as i16 {
         return None;
     }
 
     let (x, y) = (x as usize, y as usize);
 
-    if grid[x][y] > 0.0 {
+    if grid[x * SIZE + y] > 0.0 {
         let id = id_map[x][y];
         if id != 0 {
             return Some(id);
@@ -150,15 +151,14 @@ pub fn check_cell(
 mod tests {
     use super::*;
 
-    fn get_grid() -> Vec<Vec<f32>> {
-        let size = 256;
-        let mut grid = vec![vec![0.0f32; size]; size];
+    fn get_grid() -> Vec<f32> {
+        let mut grid = vec![0.0f32; SIZE * SIZE];
 
         // particle 1
         let range: isize = 4;
         for x in -range..=range {
             for y in -range..=range {
-                grid[(250 + x) as usize][(250 + y) as usize] = 1.0;
+                grid[(250 + x) as usize * SIZE + (250 + y) as usize] = 1.0;
             }
         }
 
@@ -166,7 +166,7 @@ mod tests {
         let range: isize = 3;
         for x in -range..=range {
             for y in -range..=range {
-                grid[(5 + x) as usize][(5 + y) as usize] = 1.0;
+                grid[(5 + x) as usize * SIZE + (5 + y) as usize] = 1.0;
             }
         }
 
