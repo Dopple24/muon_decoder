@@ -86,13 +86,14 @@ impl DimensionalTrack {
             return Self::default();
         }
 
+        let track = particle.get_track();
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
-        for &(x, y) in particle.get_track().iter() {
+        for &(x, y) in track.iter() {
             sum_x += x as f32;
             sum_y += y as f32;
         }
-        let count = particle.get_track().len() as f32;
+        let count = track.len() as f32;
         let avg_x_pixel = sum_x / count;
         let avg_y_pixel = sum_y / count;
 
@@ -114,29 +115,37 @@ impl DimensionalTrack {
         // azimuth: horizontal angle based on detector orientation (0 = North/away)
         // zenith: angle from the 2D track slope in the detector plane
         // secondary_angle: angle from vertical (Y) based on pixel_depth
+        // azimuth: compass direction (0=North, 90=East, 180=South, 270=West)
+        // zenith (from 2D slope): in-plane angle in detector
+        // secondary_angle: angle from vertical (0=straight down, 90=horizontal)
         let azimuth_rad = particle.azimuth().to_radians();
-        let zenith_rad = particle.zenith().to_radians();
+
+        // Apply -90 degree rotation to zenith to account for coordinate transformation
+        // 2D X -> 3D Z, 2D Y -> 3D X
+        let zenith_deg = particle.zenith() - 90.0;
+        let zenith_rad = zenith_deg.to_radians();
+
         let secondary_angle_rad = particle.azimuth_offset().to_radians();
 
-        // The zenith angle is in the XZ plane (detector plane)
-        // When azimuth=0 (North): zenith defines angle between +X (right/East) and +Z (away/South)
-        // Apply zenith rotation to get 2D direction in XZ plane
-        let dir_x_2d = zenith_rad.sin();
-        let dir_z_2d = zenith_rad.cos();
+        // Cosmic muons come from above, so Y should be positive (coming downward means negative Y in direction)
+        // secondary_angle is 0 = straight down, 90 = horizontal
+        // So cos(secondary_angle) gives vertical component (1 at 0°, 0 at 90°)
+        // And sin(secondary_angle) gives horizontal component
+        let vertical_component = secondary_angle_rad.cos();  // Positive when coming from above
+        let horizontal_magnitude = secondary_angle_rad.sin();
 
-        // Apply azimuth rotation (rotating the XZ plane direction around Y axis)
-        let dir_x_rotated = dir_x_2d * azimuth_rad.cos() - dir_z_2d * azimuth_rad.sin();
-        let dir_z_rotated = dir_x_2d * azimuth_rad.sin() + dir_z_2d * azimuth_rad.cos();
+        // The in-plane angle (zenith) determines the horizontal direction within the detector plane
+        // Combined with azimuth, this gives the full horizontal direction
+        let dir_x_horizontal = zenith_rad.sin() * horizontal_magnitude;
+        let dir_z_horizontal = zenith_rad.cos() * horizontal_magnitude;
 
-        // Now apply secondary angle (elevation from detector plane using pixel_depth)
-        // This tilts the XZ direction towards Y (up/down)
-        let dir_x = dir_x_rotated * secondary_angle_rad.cos();
-        let dir_y = secondary_angle_rad.sin();
-        let dir_z = f32::abs(dir_z_rotated * secondary_angle_rad.cos());
+        // Apply azimuth rotation (around Y axis)
+        let dir_x = dir_x_horizontal * azimuth_rad.cos() - dir_z_horizontal * azimuth_rad.sin();
+        let dir_y = vertical_component;  // Positive so particles come from above
+        let dir_z = dir_x_horizontal * azimuth_rad.sin() + dir_z_horizontal * azimuth_rad.cos();
 
         let direction = Vector3::new(dir_x, dir_y, dir_z).normalize();
 
-        // norm all directions to positive Z
         Self { source, direction }
     }
 }
