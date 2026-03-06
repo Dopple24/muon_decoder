@@ -4,10 +4,10 @@ use crate::{
     particle_extractor::{self},
 };
 use eframe::egui::{self, ColorImage};
-use rfd::FileDialog;
-use std::{collections::HashMap, io::Write, path::PathBuf};
 use rayon::prelude::*;
+use rfd::FileDialog;
 use std::sync::{Arc, Mutex};
+use std::{collections::HashMap, io::Write, path::PathBuf};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Mode {
@@ -290,7 +290,9 @@ impl MatrixApp {
             .tracks
             .iter()
             .enumerate()
-            .par_bridge().into_par_iter().for_each(|(frame_index, p)| {
+            .par_bridge()
+            .into_par_iter()
+            .for_each(|(frame_index, p)| {
                 let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
                 let particles = particle_extractor::extract(p, &mut buffer, 2)
                     .into_values()

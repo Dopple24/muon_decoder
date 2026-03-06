@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use crate::SIZE;
+use std::collections::HashMap;
 
 /// Extracts connected particles from a grid.
 pub fn extract(

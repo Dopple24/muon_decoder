@@ -1,5 +1,5 @@
-use crate::graphics::Orientation;
 use crate::SIZE;
+use crate::graphics::Orientation;
 use geo::algorithm::line_measures::{Euclidean, Length};
 use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
