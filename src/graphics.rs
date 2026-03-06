@@ -88,6 +88,14 @@ pub struct MatrixApp {
     pub pixel_width: Option<f32>,
     pub selected_mode: Orientation,
     renderer_3d: crate::renderer::Renderer3D,
+
+    // Sorting state for muon grid
+    muon_sort_column: Option<usize>,
+    muon_sort_ascending: bool,
+
+    // Sorting state for sus_muon grid
+    sus_muon_sort_column: Option<usize>,
+    sus_muon_sort_ascending: bool,
 }
 
 impl MatrixApp {
@@ -125,6 +133,10 @@ impl MatrixApp {
             pixel_width: None,
             selected_mode: Orientation::North,
             renderer_3d: crate::renderer::Renderer3D::new(),
+            muon_sort_column: None,
+            muon_sort_ascending: true,
+            sus_muon_sort_column: None,
+            sus_muon_sort_ascending: true,
         };
         app.update_image();
         app
@@ -340,6 +352,12 @@ impl MatrixApp {
         self.all_tracks = std::mem::take(&mut *all_buf.lock().unwrap());
         self.muons = std::mem::take(&mut *muons_buf.lock().unwrap());
         self.sus_muons = std::mem::take(&mut *sus_muons_buf.lock().unwrap());
+
+        // Reset sorting state when data changes
+        self.muon_sort_column = None;
+        self.muon_sort_ascending = true;
+        self.sus_muon_sort_column = None;
+        self.sus_muon_sort_ascending = true;
     }
 
     fn init_combined(&mut self) {
@@ -523,7 +541,13 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, "muon_grid", &self.muons);
+                        show_muon_grid(
+                            ui,
+                            "muon_grid",
+                            &mut self.muons,
+                            &mut self.muon_sort_column,
+                            &mut self.muon_sort_ascending,
+                        );
                         ui.heading("📊 Sus Muons");
                         if ui.button("export").clicked() {
                             let csv = build_csv(&self.sus_muons);
@@ -533,7 +557,13 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, "sus_grid", &self.sus_muons);
+                        show_muon_grid(
+                            ui,
+                            "sus_grid",
+                            &mut self.sus_muons,
+                            &mut self.sus_muon_sort_column,
+                            &mut self.sus_muon_sort_ascending,
+                        );
                     });
             });
 
@@ -760,39 +790,74 @@ fn export_csv(content: &str) -> Result<(), String> {
     Ok(())
 }
 use egui_extras::{Column, TableBuilder};
-fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
+fn show_muon_grid(
+    ui: &mut egui::Ui,
+    id: &str,
+    muons: &mut [Muon],
+    sort_column: &mut Option<usize>,
+    sort_ascending: &mut bool,
+) {
     ui.push_id(id, |ui| {
         TableBuilder::new(ui)
             .striped(true)
             .columns(Column::auto(), 9)
             .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Zenith").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Abs zenith").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Azimuth").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("azimuth offset").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("total energy").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("size").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("let").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("frame #").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("file").wrap(false));
-                });
+                let headers = [
+                    "Zenith",
+                    "Abs zenith",
+                    "Azimuth",
+                    "azimuth offset",
+                    "total energy",
+                    "size",
+                    "let",
+                    "frame #",
+                    "file",
+                ];
+
+                for (col_idx, header_text) in headers.iter().enumerate() {
+                    header.col(|ui| {
+                        // Build header text with sort indicator
+                        let header_display = if *sort_column == Some(col_idx) {
+                            if *sort_ascending {
+                                format!("{} ^", header_text)
+                            } else {
+                                format!("{} v", header_text)
+                            }
+                        } else {
+                            header_text.to_string()
+                        };
+
+                        let response = ui.add(
+                            egui::Label::new(header_display)
+                                .wrap(false)
+                                .sense(egui::Sense::click()),
+                        );
+
+                        // Change cursor to pointer on hover
+                        if response.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+
+                        if response.clicked() {
+                            if *sort_column == Some(col_idx) {
+                                // Cycle: descending -> ascending -> off
+                                if *sort_ascending {
+                                    // Was ascending, now turn off
+                                    *sort_column = None;
+                                } else {
+                                    // Was descending, now ascending
+                                    *sort_ascending = true;
+                                    sort_muons_in_place(muons, *sort_column, *sort_ascending);
+                                }
+                            } else {
+                                // New column: start with descending
+                                *sort_column = Some(col_idx);
+                                *sort_ascending = false;
+                                sort_muons_in_place(muons, *sort_column, *sort_ascending);
+                            }
+                        }
+                    });
+                }
             })
             .body(|body| {
                 body.rows(18.0, muons.len(), |mut row| {
@@ -828,4 +893,97 @@ fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
                 });
             });
     });
+}
+
+fn sort_muons_in_place(muons: &mut [Muon], column: Option<usize>, ascending: bool) {
+    if muons.is_empty() {
+        return;
+    }
+
+    if let Some(col) = column {
+        match col {
+            0 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.zenith, b.zenith));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.zenith, b.zenith));
+                }
+            }
+            1 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.abs_angle_primary, b.abs_angle_primary));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.abs_angle_primary, b.abs_angle_primary));
+                }
+            }
+            2 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.azimuth, b.azimuth));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.azimuth, b.azimuth));
+                }
+            }
+            3 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.azimuth_offset, b.azimuth_offset));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.azimuth_offset, b.azimuth_offset));
+                }
+            }
+            4 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.total_energy, b.total_energy));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.total_energy, b.total_energy));
+                }
+            }
+            5 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.size.cmp(&b.size));
+                } else {
+                    muons.sort_by(|a, b| b.size.cmp(&a.size));
+                }
+            }
+            6 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.let_avg, b.let_avg));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.let_avg, b.let_avg));
+                }
+            }
+            7 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.frame_index.cmp(&b.frame_index));
+                } else {
+                    muons.sort_by(|a, b| b.frame_index.cmp(&a.frame_index));
+                }
+            }
+            8 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.file.cmp(&b.file));
+                } else {
+                    muons.sort_by(|a, b| b.file.cmp(&a.file));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn compare_f32(a: f32, b: f32) -> std::cmp::Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+    }
+}
+
+fn compare_f32_desc(a: f32, b: f32) -> std::cmp::Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => b.partial_cmp(&a).unwrap_or(std::cmp::Ordering::Equal),
+    }
 }
