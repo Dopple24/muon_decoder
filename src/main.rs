@@ -6,12 +6,13 @@ mod decoder;
 mod file_reader;
 mod graphics;
 mod particle_extractor;
+mod renderer;
 
 
 const SIZE: usize = 256;
 
 fn main() -> eframe::Result<()> {
-    let grid: Vec<Vec<Vec<f32>>> = vec![vec![vec![0.0; SIZE]; SIZE]; 1];
+    let grid: Vec<Vec<f32>> = vec![vec![0.0; SIZE * SIZE]; 1];
 
     let tracks: Vec<decoder::Particle> = Vec::new();
 
@@ -48,7 +49,7 @@ fn load_icon() -> Option<IconData> {
         }
     }
     .into_rgba8();
-        
+
 
     let (width, height) = image.dimensions();
     let rgba = image.into_raw();

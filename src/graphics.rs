@@ -4,7 +4,9 @@ use crate::{
     particle_extractor::{self},
 };
 use eframe::egui::{self, ColorImage};
+use rayon::prelude::*;
 use rfd::FileDialog;
+use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, io::Write, path::PathBuf};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -82,13 +84,14 @@ pub struct MatrixApp {
     show_dialog: bool,
     input_depth: String,
     input_width: String,
-    pixel_depth: Option<i32>,
-    pixel_width: Option<f32>,
-    selected_mode: Orientation,
+    pub pixel_depth: Option<i32>,
+    pub pixel_width: Option<f32>,
+    pub selected_mode: Orientation,
+    renderer_3d: crate::renderer::Renderer3D,
 }
 
 impl MatrixApp {
-    pub fn new(matricees: Vec<Vec<Vec<f32>>>, tracks: Vec<Particle>, scale: usize) -> Self {
+    pub fn new(matricees: Vec<Vec<f32>>, tracks: Vec<Particle>, scale: usize) -> Self {
         let mut app = Self {
             matricees: vec![Tracks {
                 tracks: matricees,
@@ -121,6 +124,7 @@ impl MatrixApp {
             pixel_depth: None,
             pixel_width: None,
             selected_mode: Orientation::North,
+            renderer_3d: crate::renderer::Renderer3D::new(),
         };
         app.update_image();
         app
@@ -130,12 +134,17 @@ impl MatrixApp {
     fn update_image(&mut self) {
         if self.current_mode == Mode::Compound {
             self.init_compound_mode();
-        } else if self.current_mode == Mode::Combined {
+        } else {
+            // clear unused memory (we recalculate it again anyway)
+            self.muons.clear();
+            self.sus_muons.clear();
+        }
+        if self.current_mode == Mode::Combined {
             self.init_combined();
         }
         self.update_counter();
-        let size_x = self.matricees[self.current_file].tracks[self.current_matrix].len();
-        let size_y = self.matricees[self.current_file].tracks[self.current_matrix][0].len();
+        let size_x = crate::SIZE;
+        let size_y = crate::SIZE;
         let img_x = size_x * self.scale;
         let img_y = size_y * self.scale;
         let mut pixels = vec![egui::Color32::BLACK; img_x * img_y];
@@ -150,20 +159,19 @@ impl MatrixApp {
 
         let tracks_to_draw: Vec<Vec<(usize, usize)>> = match self.current_mode {
             Mode::Single => vec![self.tracks_to_draw[self.current_track].get_track()],
-            Mode::Combined => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
-            Mode::Compound => {
-                self.init_compound_mode();
-                self.tracks_to_draw.iter().map(|p| p.get_track()).collect()
-            }
+            _ => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
         };
+
+        crate::renderer::update_data(tracks_to_draw.clone(), self);
 
         for track_cells in tracks_to_draw {
             let color = egui::Color32::WHITE;
             for (x, y) in track_cells {
                 for dx in 0..self.scale {
                     for dy in 0..self.scale {
-                        let px = x * self.scale + dx;
-                        let py = y * self.scale + dy;
+                        // Rotate 90 degrees counter-clockwise: (x,y) -> (y, size_x-x)
+                        let px = (size_y - 1 - y) * self.scale + dy;
+                        let py = x * self.scale + dx;
                         if px < img_x && py < img_y {
                             pixels[px * img_y + py] = color;
                         }
@@ -190,7 +198,7 @@ impl MatrixApp {
 
         self.tracks_to_draw.clear();
 
-        for track in &self.all_tracks {
+        for track in &mut self.all_tracks {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track.particle_type(
@@ -275,21 +283,24 @@ impl MatrixApp {
     }
 
     fn init_compound_mode(&mut self) {
-        self.all_tracks = Vec::new();
-        self.muons.clear();
-        self.sus_muons.clear();
-        let _mat: Vec<_> = self.matricees[self.current_file]
+        let all_buf: Arc<Mutex<Vec<Particle>>> = Arc::new(Mutex::new(Vec::new()));
+        let muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
+        let sus_muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
+
+        self.matricees[self.current_file]
             .tracks
             .iter()
             .enumerate()
-            .flat_map(|(frame_index, p)| {
+            .par_bridge()
+            .into_par_iter()
+            .for_each(|(frame_index, p)| {
                 let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
                 let particles = particle_extractor::extract(p, &mut buffer, 2)
                     .into_values()
                     .collect::<Vec<_>>();
 
                 for part in &particles {
-                    let particle = Particle::new(
+                    let mut particle = Particle::new(
                         part.clone(),
                         frame_index,
                         self.pixel_depth,
@@ -298,7 +309,7 @@ impl MatrixApp {
                     );
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
-                        self.muons.push(Muon {
+                        muons_buf.lock().unwrap().push(Muon {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
@@ -310,7 +321,7 @@ impl MatrixApp {
                             let_avg: particle.let_avg(p),
                         })
                     } else if part_type == PartType::SusMuon {
-                        self.sus_muons.push(Muon {
+                        sus_muons_buf.lock().unwrap().push(Muon {
                             file: self.matricees[self.current_file].file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
@@ -322,11 +333,13 @@ impl MatrixApp {
                             let_avg: particle.let_avg(p),
                         })
                     }
-                    self.all_tracks.push(particle);
+                    all_buf.lock().unwrap().push(particle);
                 }
-                particles
-            })
-            .collect();
+            });
+
+        self.all_tracks = std::mem::take(&mut *all_buf.lock().unwrap());
+        self.muons = std::mem::take(&mut *muons_buf.lock().unwrap());
+        self.sus_muons = std::mem::take(&mut *sus_muons_buf.lock().unwrap());
     }
 
     fn init_combined(&mut self) {
@@ -374,6 +387,9 @@ impl eframe::App for MatrixApp {
             self.needs_update = false;
         }
 
+        // Display the 3D renderer window
+        self.renderer_3d.show(ctx);
+
         // ============================
         // TOP BAR
         // ============================
@@ -395,6 +411,10 @@ impl eframe::App for MatrixApp {
                     self.current_mode = Mode::Single;
                     self.current_track = self.current_track.min(self.tracks_to_draw.len() - 1);
                     self.update_image();
+                }
+
+                if ui.button("3D View").clicked() {
+                    self.renderer_3d.toggle_window();
                 }
 
                 if ui.button("Combined").clicked() && !self.tracks_to_draw.is_empty() {
@@ -438,7 +458,7 @@ impl eframe::App for MatrixApp {
                     count.insert(p, 0usize);
                 }
 
-                for particle in &self.tracks_to_draw {
+                for particle in &mut self.tracks_to_draw {
                     *count
                         .get_mut(&particle.particle_type(
                             &self.matricees[self.current_file].tracks[self.current_matrix],
@@ -479,7 +499,8 @@ impl eframe::App for MatrixApp {
                     || response_un.changed()
                 {
                     self.update_image();
-                    self.update_counter();
+                    // this is redundant, update_image() already calls update_counter itself()
+                    // self.update_counter();
                 }
             });
 
@@ -490,7 +511,7 @@ impl eframe::App for MatrixApp {
             .resizable(true)
             .min_width(150.0)
             .show(ctx, |ui| {
-                egui::ScrollArea::new(true)
+                egui::ScrollArea::horizontal()
                     .id_source("muons_scroll")
                     .show(ui, |ui| {
                         ui.heading("📊 Muons");
@@ -502,7 +523,7 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, &self.muons);
+                        show_muon_grid(ui, "muon_grid", &self.muons);
                         ui.heading("📊 Sus Muons");
                         if ui.button("export").clicked() {
                             let csv = build_csv(&self.sus_muons);
@@ -512,9 +533,10 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, &self.sus_muons);
+                        show_muon_grid(ui, "sus_grid", &self.sus_muons);
                     });
             });
+
 
         // ============================
         // BOTTOM BAR
@@ -647,11 +669,11 @@ impl eframe::App for MatrixApp {
                         self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
                     let selected_track = if self.tracks_to_draw.is_empty() {
-                        &Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
+                        &mut Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
                     }
                     else {
-                        &self.tracks_to_draw[self.current_track]
-                    }; 
+                        &mut self.tracks_to_draw[self.current_track]
+                    };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
                         selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
@@ -737,32 +759,73 @@ fn export_csv(content: &str) -> Result<(), String> {
 
     Ok(())
 }
-fn show_muon_grid(ui: &mut egui::Ui, muons: &[Muon]) {
-    egui::Grid::new(ui.next_auto_id())
-        .spacing([10.0, 6.0])
-        .show(ui, |ui| {
-            ui.label("Zenith");
-            ui.label("Abs zenith");
-            ui.label("Azimuth");
-            ui.label("azimuth offset");
-            ui.label("total energy");
-            ui.label("size");
-            ui.label("let");
-            ui.label("frame #");
-            ui.label("file");
-            ui.end_row();
+use egui_extras::{Column, TableBuilder};
+fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
+    ui.push_id(id, |ui| {
+        TableBuilder::new(ui)
+            .striped(true)
+            .columns(Column::auto(), 9)
+            .header(20.0, |mut header| {
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Zenith").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Abs zenith").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("Azimuth").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("azimuth offset").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("total energy").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("size").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("let").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("frame #").wrap(false));
+                });
+                header.col(|ui| {
+                    ui.add(egui::Label::new("file").wrap(false));
+                });
+            })
+            .body(|body| {
+                body.rows(18.0, muons.len(), |mut row| {
+                    let muon = &muons[row.index()];
 
-            for muon in muons {
-                ui.label(muon.zenith.to_string());
-                ui.label(muon.abs_angle_primary.to_string());
-                ui.label(muon.azimuth.to_string());
-                ui.label(muon.azimuth_offset.to_string());
-                ui.label(muon.total_energy.to_string());
-                ui.label(muon.size.to_string());
-                ui.label(muon.let_avg.to_string());
-                ui.label(muon.frame_index.to_string());
-                ui.label(format!("{}", muon.file.to_string_lossy()));
-                ui.end_row();
-            }
-        });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.zenith.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.abs_angle_primary.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.azimuth.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.azimuth_offset.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.total_energy.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.size.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.let_avg.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.frame_index.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.file.to_string_lossy()).wrap(false));
+                    });
+                });
+            });
+    });
 }
