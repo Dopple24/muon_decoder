@@ -5,17 +5,17 @@ use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct Tracks {
-    pub tracks: Vec<Vec<Vec<f32>>>,
+    pub tracks: Vec<Vec<f32>>,
     pub file_path: PathBuf,
 }
 
-pub fn read_lines<P>(filename: P) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Error>>
+pub fn read_lines<P>(filename: P) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>>
 where
     P: AsRef<Path>,
 {
     let file = File::open(&filename)?;
     if let Ok(val) = matrix_read(&file) {
-        return Ok(vec![val]);
+        return Ok(val);
     }
     let file = File::open(&filename)?;
     let grids = match ascii_read(&file) {
@@ -60,17 +60,22 @@ fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
     Ok(grid)
 }
 
-fn ascii_read(file: &File) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Error>> {
+fn ascii_read(file: &File) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
     let lines = io::BufReader::new(file).lines();
-    let mut grid: Vec<Vec<f32>> = vec![vec![0.0; SIZE]; SIZE];
-    let mut grids: Vec<Vec<Vec<f32>>> = Vec::new();
+    let mut grid: Vec<f32> = vec![0.0; SIZE * SIZE];
+
+    // attempt to avoid reallocations by guessing amount of grids
+    let file_size = file.metadata().unwrap().len() as usize;
+    let guessed_grids_size = file_size / 1000;
+
+    let mut grids: Vec<Vec<f32>> = Vec::with_capacity(guessed_grids_size);
     for lin in lines.map_while(Result::ok) {
         if lin.trim() == "#" {
             grids.push(grid);
-            grid = vec![vec![0.0; SIZE]; SIZE];
+            grid = vec![0.0; SIZE * SIZE];
             continue;
         }
-        let mut vals = lin.split_whitespace();
+        let mut vals = lin.split_ascii_whitespace();
         let x: usize = vals
             .next()
             .ok_or(Error::new(io::ErrorKind::InvalidData, "wrong format"))?
@@ -84,11 +89,12 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<Vec<f32>>>, Box<dyn std::error::Err
             .ok_or(Error::new(io::ErrorKind::InvalidData, "wrong format"))?
             .parse()?;
 
-        grid[x][y] = val;
+        grid[x * SIZE + y] = val;
     }
     if grids.is_empty() {
         return Err(Error::new(io::ErrorKind::InvalidData, "wrong format").into());
     }
+
     Ok(grids)
 }
 

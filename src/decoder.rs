@@ -1,4 +1,5 @@
 use crate::graphics::Orientation;
+use crate::SIZE;
 use geo::algorithm::line_measures::{Euclidean, Length};
 use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
@@ -64,25 +65,25 @@ impl Particle {
         self.track.len()
     }
 
-    pub fn total_energy(&mut self, grid: &[Vec<f32>]) -> f32 {
+    pub fn total_energy(&mut self, grid: &[f32]) -> f32 {
         if let Some(val) = self.total_energy_cache {
             return val;
         }
 
-        let energy: f32 = self.track.iter().map(|&(x, y)| grid[x][y]).sum();
+        let energy: f32 = self.track.iter().map(|&(x, y)| grid[x * SIZE + y]).sum();
 
         self.total_energy_cache = Some(energy);
         energy
     }
 
-    pub fn max_energy(&self, grid: &[Vec<f32>]) -> f32 {
+    pub fn max_energy(&self, grid: &[f32]) -> f32 {
         self.track
             .iter()
-            .map(|&(x, y)| grid[x][y])
+            .map(|&(x, y)| grid[x * SIZE + y])
             .fold(0.0, |acc, val| acc.max(val))
     }
 
-    pub fn avg_energy(&mut self, grid: &[Vec<f32>]) -> f32 {
+    pub fn avg_energy(&mut self, grid: &[f32]) -> f32 {
         self.total_energy(grid) / self.size() as f32
     }
 
@@ -108,7 +109,7 @@ impl Particle {
         (x_diff.powi(2) + y_diff.powi(2)).sqrt()
     }
 
-    pub fn let_avg(&mut self, grid: &[Vec<f32>]) -> f32 {
+    pub fn let_avg(&mut self, grid: &[f32]) -> f32 {
         if let Some(val) = self.let_avg_cache {
             return val;
         }
@@ -181,7 +182,7 @@ impl Particle {
         self.secondary_angle()
     }
 
-    pub fn particle_type(&mut self, grid: &[Vec<f32>]) -> PartType {
+    pub fn particle_type(&mut self, grid: &[f32]) -> PartType {
         if let Some(pt) = self.part_type_cache {
             return pt;
         }

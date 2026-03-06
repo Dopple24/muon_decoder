@@ -91,7 +91,7 @@ pub struct MatrixApp {
 }
 
 impl MatrixApp {
-    pub fn new(matricees: Vec<Vec<Vec<f32>>>, tracks: Vec<Particle>, scale: usize) -> Self {
+    pub fn new(matricees: Vec<Vec<f32>>, tracks: Vec<Particle>, scale: usize) -> Self {
         let mut app = Self {
             matricees: vec![Tracks {
                 tracks: matricees,
@@ -143,8 +143,8 @@ impl MatrixApp {
             self.init_combined();
         }
         self.update_counter();
-        let size_x = self.matricees[self.current_file].tracks[self.current_matrix].len();
-        let size_y = self.matricees[self.current_file].tracks[self.current_matrix][0].len();
+        let size_x = crate::SIZE;
+        let size_y = crate::SIZE;
         let img_x = size_x * self.scale;
         let img_y = size_y * self.scale;
         let mut pixels = vec![egui::Color32::BLACK; img_x * img_y];

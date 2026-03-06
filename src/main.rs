@@ -12,7 +12,7 @@ mod renderer;
 const SIZE: usize = 256;
 
 fn main() -> eframe::Result<()> {
-    let grid: Vec<Vec<Vec<f32>>> = vec![vec![vec![0.0; SIZE]; SIZE]; 1];
+    let grid: Vec<Vec<f32>> = vec![vec![0.0; SIZE * SIZE]; 1];
 
     let tracks: Vec<decoder::Particle> = Vec::new();
 
