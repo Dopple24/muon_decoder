@@ -159,12 +159,7 @@ impl MatrixApp {
 
         let tracks_to_draw: Vec<Vec<(usize, usize)>> = match self.current_mode {
             Mode::Single => vec![self.tracks_to_draw[self.current_track].get_track()],
-            Mode::Combined => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
-            Mode::Compound => {
-                // WHY are we compounding ts again??
-                // self.init_compound_mode();
-                self.tracks_to_draw.iter().map(|p| p.get_track()).collect()
-            }
+            _ => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
         };
 
         crate::renderer::update_data(tracks_to_draw.clone(), self);
