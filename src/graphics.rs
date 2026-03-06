@@ -664,14 +664,14 @@ impl eframe::App for MatrixApp {
                         selected_track.abs_angle_primary(),
                         selected_track.zenith(),
                         selected_track.winding(),
-                        selected_track.get_frame_index(),
+                        selected_track.get_frame_index() + 1,
                     ));
                 }
 
                 else if self.current_mode == Mode::Combined && !self.tracks_to_draw.is_empty(){
                     ui.label(format!(
                         "frame number: {}",
-                        &self.tracks_to_draw[self.current_track.min(self.tracks_to_draw.len())].get_frame_index()
+                        &self.tracks_to_draw[self.current_track.min(self.tracks_to_draw.len())].get_frame_index() + 1
                     ));
                 }
             });
