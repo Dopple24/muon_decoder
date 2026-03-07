@@ -127,8 +127,7 @@ impl Particle {
     }
 
     fn secondary_angle(&mut self) -> f32 {
-        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).asin() * 180.0
-            / PI as f32
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width)).asin() * 180.0 / PI as f32
     }
 
     pub fn roundness(&mut self) -> f32 {
@@ -212,7 +211,8 @@ impl Particle {
                 #[allow(clippy::if_same_then_else)]
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
                     #[allow(clippy::if_same_then_else)]
-                    if self.winding() < 0.25 { //consider 0.2
+                    if self.winding() < 0.25 {
+                        //consider 0.2
                         PartType::Muon
                     } else {
                         PartType::Beta
