@@ -11,6 +11,8 @@ pub struct Tracks {
 
 impl Tracks {
     pub fn get_tracks(&mut self) -> &mut Vec<Vec<f32>> {
+        // this is necessary, doing what clippy suggests causes lifetime problems
+        #[allow(clippy::unnecessary_unwrap)]
         if self.tracks_cache.is_some() {
             return self.tracks_cache.as_mut().unwrap();
         }

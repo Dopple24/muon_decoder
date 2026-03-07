@@ -29,7 +29,7 @@ impl Orientation {
             Self::North => "North".to_string(),
             Self::South => "South".to_string(),
             Self::West => "West".to_string(),
-            Self::East => "East".to_string()
+            Self::East => "East".to_string(),
         }
     }
     pub fn azimuth(&self) -> f32 {
@@ -37,7 +37,7 @@ impl Orientation {
             Self::North => 0.0,
             Self::South => 180.0,
             Self::West => 270.0,
-            Self::East => 90.0
+            Self::East => 90.0,
         }
     }
     fn all_values(&self) -> Vec<Orientation> {
@@ -214,9 +214,9 @@ impl MatrixApp {
 
             if filters.iter().any(|(show, ty)| {
                 *show
-                    && track.particle_type(
-                        &self.matricees[self.current_file].get_tracks()[matrix_idx],
-                    ) == *ty
+                    && track
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx])
+                        == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
             }
@@ -247,8 +247,8 @@ impl MatrixApp {
             self.current_file = (self.current_file + 1) % self.matricees.len();
             self.current_matrix = 0;
         } else {
-            self.current_matrix =
-                (self.current_matrix + 1) % self.matricees[self.current_file].get_tracks().len().max(1);
+            self.current_matrix = (self.current_matrix + 1)
+                % self.matricees[self.current_file].get_tracks().len().max(1);
         }
     }
 
@@ -325,7 +325,7 @@ impl MatrixApp {
 
         self.matricees[self.current_file]
             .get_tracks()
-            .into_iter()
+            .iter_mut()
             .enumerate()
             .par_bridge()
             .into_par_iter()
@@ -576,7 +576,6 @@ impl eframe::App for MatrixApp {
                     });
             });
 
-
         // ============================
         // BOTTOM BAR
         // ============================
@@ -622,13 +621,16 @@ impl eframe::App for MatrixApp {
                             egui::ComboBox::from_id_source("mode_selector")
                                 .selected_text(&self.selected_mode.into_readable())
                                 .show_ui(ui, |ui| {
-                                    Orientation::North.all_values().iter().for_each(|direction| {
-                                        ui.selectable_value(
-                                            &mut self.selected_mode,
-                                            *direction,
-                                            direction.into_readable(),
-                                        );
-                                    });
+                                    Orientation::North
+                                        .all_values()
+                                        .iter()
+                                        .for_each(|direction| {
+                                            ui.selectable_value(
+                                                &mut self.selected_mode,
+                                                *direction,
+                                                direction.into_readable(),
+                                            );
+                                        });
                                 });
 
                             ui.add_space(15.0);
@@ -649,8 +651,8 @@ impl eframe::App for MatrixApp {
                                                     vec![vec![0; crate::SIZE]; crate::SIZE];
                                                 self.all_tracks =
                                                     crate::particle_extractor::extract(
-                                                        &self.matricees[self.current_matrix].get_tracks()
-                                                            [self.current_matrix],
+                                                        &self.matricees[self.current_matrix]
+                                                            .get_tracks()[self.current_matrix],
                                                         &mut id_map,
                                                         2,
                                                     )
@@ -765,8 +767,7 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content
-        .push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
+    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
