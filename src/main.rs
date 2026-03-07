@@ -12,8 +12,6 @@ mod renderer;
 const SIZE: usize = 256;
 
 fn main() -> eframe::Result<()> {
-    let grid: Vec<Vec<f32>> = vec![vec![0.0; SIZE * SIZE]; 1];
-
     let tracks: Vec<decoder::Particle> = Vec::new();
 
     // graphics
@@ -34,7 +32,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Muon finder",
         options,
-        Box::new(move |_cc| Box::new(graphics::MatrixApp::new(grid, tracks, 2))),
+        Box::new(move |_cc| Box::new(graphics::MatrixApp::new(tracks, 2))),
     )
 }
 
