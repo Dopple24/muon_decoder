@@ -29,7 +29,7 @@ impl Orientation {
             Self::North => "North".to_string(),
             Self::South => "South".to_string(),
             Self::West => "West".to_string(),
-            Self::East => "East".to_string()
+            Self::East => "East".to_string(),
         }
     }
     pub fn azimuth(&self) -> f32 {
@@ -37,7 +37,7 @@ impl Orientation {
             Self::North => 0.0,
             Self::South => 180.0,
             Self::West => 270.0,
-            Self::East => 90.0
+            Self::East => 90.0,
         }
     }
     fn all_values(&self) -> Vec<Orientation> {
@@ -91,10 +91,10 @@ pub struct MatrixApp {
 }
 
 impl MatrixApp {
-    pub fn new(matricees: Vec<Vec<f32>>, tracks: Vec<Particle>, scale: usize) -> Self {
+    pub fn new(tracks: Vec<Particle>, scale: usize) -> Self {
         let mut app = Self {
             matricees: vec![Tracks {
-                tracks: matricees,
+                tracks_cache: None,
                 file_path: PathBuf::new(),
             }],
             current_file: 0,
@@ -184,6 +184,13 @@ impl MatrixApp {
             size: [img_x, img_y],
             pixels,
         };
+
+        // clear memory
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
+        self.all_tracks.shrink_to_fit();
+        self.tracks_to_draw.shrink_to_fit();
+        self.matricees.shrink_to_fit();
     }
 
     fn update_counter(&mut self) {
@@ -199,11 +206,17 @@ impl MatrixApp {
         self.tracks_to_draw.clear();
 
         for track in &mut self.all_tracks {
+            let matrix_idx = if self.current_mode == Mode::Compound {
+                track.get_frame_index()
+            } else {
+                self.current_matrix
+            };
+
             if filters.iter().any(|(show, ty)| {
                 *show
-                    && track.particle_type(
-                        &self.matricees[self.current_file].tracks[self.current_matrix],
-                    ) == *ty
+                    && track
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx])
+                        == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
             }
@@ -227,24 +240,29 @@ impl MatrixApp {
 
     fn matrix_move(&mut self) {
         self.current_track = 0;
-        if self.current_matrix >= self.matricees[self.current_file].tracks.len().max(1) - 1 {
+        // check if we are at the end of the current file
+        if self.current_matrix >= self.matricees[self.current_file].get_tracks().len().max(1) - 1 {
+            self.matricees[self.current_file].clear_cache();
+
             self.current_file = (self.current_file + 1) % self.matricees.len();
             self.current_matrix = 0;
         } else {
-            self.current_matrix =
-                (self.current_matrix + 1) % self.matricees[self.current_file].tracks.len().max(1);
+            self.current_matrix = (self.current_matrix + 1)
+                % self.matricees[self.current_file].get_tracks().len().max(1);
         }
     }
 
     fn matrix_move_back(&mut self) {
         self.current_track = 0;
         self.current_matrix = if self.current_matrix == 0 {
+            self.matricees[self.current_file].clear_cache();
+
             self.current_file = if self.current_file == 0 {
                 self.matricees.len().max(1) - 1
             } else {
                 self.current_file - 1
             };
-            self.matricees[self.current_file].tracks.len().max(1) - 1
+            self.matricees[self.current_file].get_tracks().len().max(1) - 1
         } else {
             self.current_matrix - 1
         };
@@ -252,16 +270,24 @@ impl MatrixApp {
 
     fn move_file(&mut self) {
         self.current_track = 0;
+        self.current_matrix = 0;
+        let old_file = self.current_file;
         self.current_file = (self.current_file + 1) % self.matricees.len().max(1);
+        // Clear the old file's cache after moving to the new file
+        self.matricees[old_file].clear_cache();
     }
 
     fn move_file_back(&mut self) {
         self.current_track = 0;
+        self.current_matrix = 0;
+        let old_file = self.current_file;
         self.current_file = if self.current_file == 0 {
             self.matricees.len().max(1) - 1
         } else {
             self.current_file - 1
         };
+        // Clear the old file's cache after moving to the new file
+        self.matricees[old_file].clear_cache();
     }
 
     fn move_data(&mut self) {
@@ -283,13 +309,23 @@ impl MatrixApp {
     }
 
     fn init_compound_mode(&mut self) {
+        // Clear old data before loading new data
+        self.all_tracks.clear();
+        self.sus_muons.clear();
+        self.muons.clear();
+        self.all_tracks.shrink_to_fit();
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
+
         let all_buf: Arc<Mutex<Vec<Particle>>> = Arc::new(Mutex::new(Vec::new()));
         let muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
         let sus_muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
 
+        let file_path = self.matricees[self.current_file].file_path.clone();
+
         self.matricees[self.current_file]
-            .tracks
-            .iter()
+            .get_tracks()
+            .iter_mut()
             .enumerate()
             .par_bridge()
             .into_par_iter()
@@ -310,7 +346,7 @@ impl MatrixApp {
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
                         muons_buf.lock().unwrap().push(Muon {
-                            file: self.matricees[self.current_file].file_path.clone(),
+                            file: file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
                             azimuth: particle.azimuth(),
@@ -322,7 +358,7 @@ impl MatrixApp {
                         })
                     } else if part_type == PartType::SusMuon {
                         sus_muons_buf.lock().unwrap().push(Muon {
-                            file: self.matricees[self.current_file].file_path.clone(),
+                            file: file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
                             azimuth: particle.azimuth(),
@@ -340,11 +376,14 @@ impl MatrixApp {
         self.all_tracks = std::mem::take(&mut *all_buf.lock().unwrap());
         self.muons = std::mem::take(&mut *muons_buf.lock().unwrap());
         self.sus_muons = std::mem::take(&mut *sus_muons_buf.lock().unwrap());
+        self.all_tracks.shrink_to_fit();
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
     }
 
     fn init_combined(&mut self) {
         self.all_tracks = crate::particle_extractor::extract(
-            &self.matricees[self.current_file].tracks[self.current_matrix],
+            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
             &mut vec![vec![0; crate::SIZE]; crate::SIZE],
             2,
         )
@@ -461,7 +500,7 @@ impl eframe::App for MatrixApp {
                 for particle in &mut self.tracks_to_draw {
                     *count
                         .get_mut(&particle.particle_type(
-                            &self.matricees[self.current_file].tracks[self.current_matrix],
+                            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
                         ))
                         .unwrap() += 1;
                 }
@@ -537,7 +576,6 @@ impl eframe::App for MatrixApp {
                     });
             });
 
-
         // ============================
         // BOTTOM BAR
         // ============================
@@ -583,13 +621,16 @@ impl eframe::App for MatrixApp {
                             egui::ComboBox::from_id_source("mode_selector")
                                 .selected_text(&self.selected_mode.into_readable())
                                 .show_ui(ui, |ui| {
-                                    Orientation::North.all_values().iter().for_each(|direction| {
-                                        ui.selectable_value(
-                                            &mut self.selected_mode,
-                                            *direction,
-                                            direction.into_readable(),
-                                        );
-                                    });
+                                    Orientation::North
+                                        .all_values()
+                                        .iter()
+                                        .for_each(|direction| {
+                                            ui.selectable_value(
+                                                &mut self.selected_mode,
+                                                *direction,
+                                                direction.into_readable(),
+                                            );
+                                        });
                                 });
 
                             ui.add_space(15.0);
@@ -610,8 +651,8 @@ impl eframe::App for MatrixApp {
                                                     vec![vec![0; crate::SIZE]; crate::SIZE];
                                                 self.all_tracks =
                                                     crate::particle_extractor::extract(
-                                                        &self.matricees[self.current_matrix].tracks
-                                                            [self.current_matrix],
+                                                        &self.matricees[self.current_matrix]
+                                                            .get_tracks()[self.current_matrix],
                                                         &mut id_map,
                                                         2,
                                                     )
@@ -676,11 +717,11 @@ impl eframe::App for MatrixApp {
                     };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
-                        selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
+                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
                         selected_track.size(),
-                        selected_track.avg_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.let_avg(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.total_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
+                        selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        selected_track.total_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
                         selected_track.azimuth(),
                         selected_track.azimuth_offset(),
                         selected_track.abs_angle_primary(),
@@ -726,8 +767,7 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content
-        .push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
+    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(

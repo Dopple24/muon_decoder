@@ -1,23 +1,42 @@
 use crate::SIZE;
 use std::fs::File;
-use std::io::{self, BufRead, Error};
+use std::io::{self, BufRead, Error, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
 pub struct Tracks {
-    pub tracks: Vec<Vec<f32>>,
+    pub tracks_cache: Option<Vec<Vec<f32>>>,
     pub file_path: PathBuf,
+}
+
+impl Tracks {
+    pub fn get_tracks(&mut self) -> &mut Vec<Vec<f32>> {
+        // this is necessary, doing what clippy suggests causes lifetime problems
+        #[allow(clippy::unnecessary_unwrap)]
+        if self.tracks_cache.is_some() {
+            return self.tracks_cache.as_mut().unwrap();
+        }
+        let tracks = read_lines(&self.file_path).unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1]);
+        self.tracks_cache = Some(tracks);
+        self.tracks_cache.as_mut().unwrap()
+    }
+
+    pub fn clear_cache(&mut self) {
+        drop(self.tracks_cache.take());
+    }
 }
 
 pub fn read_lines<P>(filename: P) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>>
 where
     P: AsRef<Path>,
 {
-    let file = File::open(&filename)?;
+    let mut file = File::open(&filename)?;
     if let Ok(val) = matrix_read(&file) {
         return Ok(val);
     }
-    let file = File::open(&filename)?;
+
+    // return back to the start of the file to attempt reading again
+    file.seek(SeekFrom::Start(0))?;
     let grids = match ascii_read(&file) {
         Ok(val) => val,
         Err(y) => {
@@ -95,14 +114,17 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> 
         return Err(Error::new(io::ErrorKind::InvalidData, "wrong format").into());
     }
 
+    // save memory from first pre-allocation
+    grids.shrink_to_fit();
+
     Ok(grids)
 }
 
 pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> {
     if !path.is_dir() {
-        if let Ok(matrix) = read_lines(path) {
+        if let Ok(_matrix) = read_lines(path) {
             let track = Tracks {
-                tracks: matrix,
+                tracks_cache: None,
                 file_path: path.to_path_buf(),
             };
             return Ok(vec![track]);
@@ -127,10 +149,10 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
                         files.append(fils);
                     }
                 } else if val.is_file()
-                    && let Ok(matrix) = read_lines(Path::new(&ok_file.path()))
+                    && let Ok(_matrix) = read_lines(Path::new(&ok_file.path()))
                 {
                     files.push(Tracks {
-                        tracks: matrix,
+                        tracks_cache: None,
                         file_path: ok_file.path().to_path_buf(),
                     })
                 }
