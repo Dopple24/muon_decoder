@@ -1,11 +1,12 @@
 use crate::SIZE;
 use std::fs::File;
-use std::io::{self, BufRead, Error, Seek, SeekFrom};
+use std::io::{self, BufRead, Error};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Tracks {
-    pub tracks_cache: Option<Vec<Vec<f32>>>,
+    tracks_cache: Option<Vec<Vec<f32>>>,
+    file_content: Vec<String>,
     pub file_path: PathBuf,
 }
 
@@ -16,7 +17,7 @@ impl Tracks {
         if self.tracks_cache.is_some() {
             return self.tracks_cache.as_mut().unwrap();
         }
-        let tracks = read_lines(&self.file_path).unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1]);
+        let tracks = read_lines(&self.file_content).unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1]);
         self.tracks_cache = Some(tracks);
         self.tracks_cache.as_mut().unwrap()
     }
@@ -26,18 +27,12 @@ impl Tracks {
     }
 }
 
-pub fn read_lines<P>(filename: P) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>>
-where
-    P: AsRef<Path>,
-{
-    let mut file = File::open(&filename)?;
-    if let Ok(val) = matrix_read(&file) {
+pub fn read_lines(lines: &[String]) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
+    if let Ok(val) = matrix_read(lines.iter()) {
         return Ok(val);
     }
 
-    // return back to the start of the file to attempt reading again
-    file.seek(SeekFrom::Start(0))?;
-    let grids = match ascii_read(&file) {
+    let grids = match ascii_read(lines.iter()) {
         Ok(val) => val,
         Err(y) => {
             return Err(y);
@@ -46,13 +41,13 @@ where
     Ok(grids)
 }
 
-fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
-    let lines = io::BufReader::new(file).lines();
-
+fn matrix_read<'a, I>(lines: I) -> Result<Vec<Vec<f32>>, std::io::Error>
+where
+    I: Iterator<Item = &'a String>,
+{
     let mut grid: Vec<Vec<f32>> = Vec::with_capacity(SIZE);
 
-    for line_result in lines {
-        let line = line_result?;
+    for line in lines {
         let row: Vec<f32> = line
             .split_whitespace()
             .map(|val| {
@@ -79,16 +74,14 @@ fn matrix_read(file: &File) -> Result<Vec<Vec<f32>>, std::io::Error> {
     Ok(grid)
 }
 
-fn ascii_read(file: &File) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> {
-    let lines = io::BufReader::new(file).lines();
+fn ascii_read<'a, I>(lines: I) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>>
+where
+    I: Iterator<Item = &'a String>,
+{
     let mut grid: Vec<f32> = vec![0.0; SIZE * SIZE];
 
-    // attempt to avoid reallocations by guessing amount of grids
-    let file_size = file.metadata().unwrap().len() as usize;
-    let guessed_grids_size = file_size / 1000;
-
-    let mut grids: Vec<Vec<f32>> = Vec::with_capacity(guessed_grids_size);
-    for lin in lines.map_while(Result::ok) {
+    let mut grids: Vec<Vec<f32>> = Vec::new();
+    for lin in lines {
         if lin.trim() == "#" {
             grids.push(grid);
             grid = vec![0.0; SIZE * SIZE];
@@ -122,9 +115,14 @@ fn ascii_read(file: &File) -> Result<Vec<Vec<f32>>, Box<dyn std::error::Error>> 
 
 pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> {
     if !path.is_dir() {
-        if let Ok(_matrix) = read_lines(path) {
+        let file = File::open(path)?;
+        let reader = std::io::BufReader::new(&file);
+        let lines = reader.lines();
+        let lines: Vec<String> = lines.map(|l| l.unwrap()).collect();
+        if let Ok(_matrix) = read_lines(&lines) {
             let track = Tracks {
                 tracks_cache: None,
+                file_content: lines,
                 file_path: path.to_path_buf(),
             };
             return Ok(vec![track]);
@@ -148,13 +146,24 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
                     if let Ok(fils) = &mut list_dir(&ok_file.path()) {
                         files.append(fils);
                     }
-                } else if val.is_file()
-                    && let Ok(_matrix) = read_lines(Path::new(&ok_file.path()))
-                {
-                    files.push(Tracks {
-                        tracks_cache: None,
-                        file_path: ok_file.path().to_path_buf(),
-                    })
+                } else if val.is_file() {
+                    let file_desc = File::open(ok_file.path())?;
+                    let reader = std::io::BufReader::new(&file_desc);
+                    let lines_r = reader.lines();
+                    let mut lines = Vec::new();
+                    for l in lines_r {
+                        match l {
+                            Ok(l) => lines.push(l),
+                            Err(_) => continue,
+                        }
+                    }
+                    if read_lines(&lines).is_ok() {
+                        files.push(Tracks {
+                            tracks_cache: None,
+                            file_content: lines,
+                            file_path: ok_file.path().to_path_buf(),
+                        })
+                    }
                 }
             }
             Err(y) => {

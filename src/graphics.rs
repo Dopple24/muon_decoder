@@ -93,10 +93,7 @@ pub struct MatrixApp {
 impl MatrixApp {
     pub fn new(tracks: Vec<Particle>, scale: usize) -> Self {
         let mut app = Self {
-            matricees: vec![Tracks {
-                tracks_cache: None,
-                file_path: PathBuf::new(),
-            }],
+            matricees: vec![Tracks::default()],
             current_file: 0,
             current_matrix: 0,
             all_tracks: tracks.clone(),
