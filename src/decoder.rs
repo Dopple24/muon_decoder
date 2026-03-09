@@ -127,8 +127,7 @@ impl Particle {
     }
 
     fn secondary_angle(&mut self) -> f32 {
-        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width as f32)).asin() * 180.0
-            / PI as f32
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width)).asin() * 180.0 / PI as f32
     }
 
     pub fn roundness(&mut self) -> f32 {
