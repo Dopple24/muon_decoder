@@ -677,7 +677,7 @@ impl eframe::App for MatrixApp {
                                             let mut id_map =
                                                 vec![vec![0; crate::SIZE]; crate::SIZE];
                                             self.all_tracks = crate::particle_extractor::extract(
-                                                &self.matricees[self.current_matrix].tracks
+                                                &self.matricees[self.current_matrix].get_tracks()
                                                     [self.current_matrix],
                                                 &mut id_map,
                                                 2,
