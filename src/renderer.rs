@@ -605,7 +605,10 @@ pub fn update_data(tracks: Vec<Vec<(usize, usize)>>, app_borrow: &mut crate::gra
         .collect::<Vec<DimensionalTrack>>();
 
     {
-        *PARTICLES.lock().unwrap() = particles;
+        let mut particle_lock = PARTICLES.lock().unwrap();
+        particle_lock.clear();
+        *particle_lock = particles;
+        particle_lock.shrink_to_fit();
     }
 }
 

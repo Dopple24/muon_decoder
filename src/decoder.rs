@@ -150,16 +150,19 @@ impl Particle {
         val
     }
 
-    fn angle(&self) -> f32 { // 0 is horizontal, 90 is pointing up
+    fn angle(&self) -> f32 {
+        // 0 is horizontal, 90 is pointing up
         (slope(&linear_regretion(&self.track), &self.track)
             .clamp(-573.0, 573.0)
             .atan()
             * 180.0
             / PI as f32
-            + 180.0) % 180.0
+            + 180.0)
+            % 180.0
     }
 
-    pub fn abs_angle_primary(&self) -> f32 { // 0 is pointing up
+    pub fn abs_angle_primary(&self) -> f32 {
+        // 0 is pointing up
         90.0 - f32::abs(
             slope(&linear_regretion(&self.track), &self.track)
                 .clamp(-573.0, 573.0)
