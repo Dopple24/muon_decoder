@@ -24,12 +24,12 @@ pub enum Orientation {
     East,
 }
 impl Orientation {
-    fn into_readable(&self) -> String {
+    fn into_readable(self) -> String {
         match self {
             Self::North => "North".to_string(),
             Self::South => "South".to_string(),
             Self::West => "West".to_string(),
-            Self::East => "East".to_string()
+            Self::East => "East".to_string(),
         }
     }
     pub fn azimuth(&self) -> f32 {
@@ -37,7 +37,7 @@ impl Orientation {
             Self::North => 0.0,
             Self::South => 180.0,
             Self::West => 270.0,
-            Self::East => 90.0
+            Self::East => 90.0,
         }
     }
     fn all_values(&self) -> Vec<Orientation> {
@@ -88,15 +88,20 @@ pub struct MatrixApp {
     pub pixel_width: Option<f32>,
     pub selected_mode: Orientation,
     renderer_3d: crate::renderer::Renderer3D,
+
+    // Sorting state for muon grid
+    muon_sort_column: Option<usize>,
+    muon_sort_ascending: bool,
+
+    // Sorting state for sus_muon grid
+    sus_muon_sort_column: Option<usize>,
+    sus_muon_sort_ascending: bool,
 }
 
 impl MatrixApp {
-    pub fn new(matricees: Vec<Vec<f32>>, tracks: Vec<Particle>, scale: usize) -> Self {
+    pub fn new(tracks: Vec<Particle>, scale: usize) -> Self {
         let mut app = Self {
-            matricees: vec![Tracks {
-                tracks: matricees,
-                file_path: PathBuf::new(),
-            }],
+            matricees: vec![Tracks::default()],
             current_file: 0,
             current_matrix: 0,
             all_tracks: tracks.clone(),
@@ -125,6 +130,10 @@ impl MatrixApp {
             pixel_width: None,
             selected_mode: Orientation::North,
             renderer_3d: crate::renderer::Renderer3D::new(),
+            muon_sort_column: None,
+            muon_sort_ascending: true,
+            sus_muon_sort_column: None,
+            sus_muon_sort_ascending: true,
         };
         app.update_image();
         app
@@ -184,6 +193,13 @@ impl MatrixApp {
             size: [img_x, img_y],
             pixels,
         };
+
+        // clear memory
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
+        self.all_tracks.shrink_to_fit();
+        self.tracks_to_draw.shrink_to_fit();
+        self.matricees.shrink_to_fit();
     }
 
     fn update_counter(&mut self) {
@@ -199,11 +215,17 @@ impl MatrixApp {
         self.tracks_to_draw.clear();
 
         for track in &mut self.all_tracks {
+            let matrix_idx = if self.current_mode == Mode::Compound {
+                track.get_frame_index()
+            } else {
+                self.current_matrix
+            };
+
             if filters.iter().any(|(show, ty)| {
                 *show
-                    && track.particle_type(
-                        &self.matricees[self.current_file].tracks[self.current_matrix], //has panicked - out of bounds exception self.current_matrix index 95, len 46 
-                    ) == *ty
+                    && track
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx]) //has panicked - out of bounds exception self.current_matrix index 95, len 46 
+                        == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
             }
@@ -227,24 +249,29 @@ impl MatrixApp {
 
     fn matrix_move(&mut self) {
         self.current_track = 0;
-        if self.current_matrix >= self.matricees[self.current_file].tracks.len().max(1) - 1 {
+        // check if we are at the end of the current file
+        if self.current_matrix >= self.matricees[self.current_file].get_tracks().len().max(1) - 1 {
+            self.matricees[self.current_file].clear_cache();
+
             self.current_file = (self.current_file + 1) % self.matricees.len();
             self.current_matrix = 0;
         } else {
-            self.current_matrix =
-                (self.current_matrix + 1) % self.matricees[self.current_file].tracks.len().max(1);
+            self.current_matrix = (self.current_matrix + 1)
+                % self.matricees[self.current_file].get_tracks().len().max(1);
         }
     }
 
     fn matrix_move_back(&mut self) {
         self.current_track = 0;
         self.current_matrix = if self.current_matrix == 0 {
+            self.matricees[self.current_file].clear_cache();
+
             self.current_file = if self.current_file == 0 {
                 self.matricees.len().max(1) - 1
             } else {
                 self.current_file - 1
             };
-            self.matricees[self.current_file].tracks.len().max(1) - 1
+            self.matricees[self.current_file].get_tracks().len().max(1) - 1
         } else {
             self.current_matrix - 1
         };
@@ -252,16 +279,24 @@ impl MatrixApp {
 
     fn move_file(&mut self) {
         self.current_track = 0;
+        self.current_matrix = 0;
+        let old_file = self.current_file;
         self.current_file = (self.current_file + 1) % self.matricees.len().max(1);
+        // Clear the old file's cache after moving to the new file
+        self.matricees[old_file].clear_cache();
     }
 
     fn move_file_back(&mut self) {
         self.current_track = 0;
+        self.current_matrix = 0;
+        let old_file = self.current_file;
         self.current_file = if self.current_file == 0 {
             self.matricees.len().max(1) - 1
         } else {
             self.current_file - 1
         };
+        // Clear the old file's cache after moving to the new file
+        self.matricees[old_file].clear_cache();
     }
 
     fn move_data(&mut self) {
@@ -283,13 +318,23 @@ impl MatrixApp {
     }
 
     fn init_compound_mode(&mut self) {
+        // Clear old data before loading new data
+        self.all_tracks.clear();
+        self.sus_muons.clear();
+        self.muons.clear();
+        self.all_tracks.shrink_to_fit();
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
+
         let all_buf: Arc<Mutex<Vec<Particle>>> = Arc::new(Mutex::new(Vec::new()));
         let muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
         let sus_muons_buf: Arc<Mutex<Vec<Muon>>> = Arc::new(Mutex::new(Vec::new()));
 
+        let file_path = self.matricees[self.current_file].file_path.clone();
+
         self.matricees[self.current_file]
-            .tracks
-            .iter()
+            .get_tracks()
+            .iter_mut()
             .enumerate()
             .par_bridge()
             .into_par_iter()
@@ -310,7 +355,7 @@ impl MatrixApp {
                     let part_type = particle.particle_type(p);
                     if part_type == PartType::Muon {
                         muons_buf.lock().unwrap().push(Muon {
-                            file: self.matricees[self.current_file].file_path.clone(),
+                            file: file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
                             azimuth: particle.azimuth(),
@@ -322,7 +367,7 @@ impl MatrixApp {
                         })
                     } else if part_type == PartType::SusMuon {
                         sus_muons_buf.lock().unwrap().push(Muon {
-                            file: self.matricees[self.current_file].file_path.clone(),
+                            file: file_path.clone(),
                             frame_index,
                             total_energy: particle.total_energy(p),
                             azimuth: particle.azimuth(),
@@ -340,11 +385,20 @@ impl MatrixApp {
         self.all_tracks = std::mem::take(&mut *all_buf.lock().unwrap());
         self.muons = std::mem::take(&mut *muons_buf.lock().unwrap());
         self.sus_muons = std::mem::take(&mut *sus_muons_buf.lock().unwrap());
+        self.all_tracks.shrink_to_fit();
+        self.muons.shrink_to_fit();
+        self.sus_muons.shrink_to_fit();
+
+        // Reset sorting state when data changes
+        self.muon_sort_column = None;
+        self.muon_sort_ascending = true;
+        self.sus_muon_sort_column = None;
+        self.sus_muon_sort_ascending = true;
     }
 
     fn init_combined(&mut self) {
         self.all_tracks = crate::particle_extractor::extract(
-            &self.matricees[self.current_file].tracks[self.current_matrix],
+            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
             &mut vec![vec![0; crate::SIZE]; crate::SIZE],
             2,
         )
@@ -461,7 +515,7 @@ impl eframe::App for MatrixApp {
                 for particle in &mut self.tracks_to_draw {
                     *count
                         .get_mut(&particle.particle_type(
-                            &self.matricees[self.current_file].tracks[self.current_matrix],
+                            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
                         ))
                         .unwrap() += 1;
                 }
@@ -523,7 +577,13 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, "muon_grid", &self.muons);
+                        show_muon_grid(
+                            ui,
+                            "muon_grid",
+                            &mut self.muons,
+                            &mut self.muon_sort_column,
+                            &mut self.muon_sort_ascending,
+                        );
                         ui.heading("📊 Sus Muons");
                         if ui.button("export").clicked() {
                             let csv = build_csv(&self.sus_muons);
@@ -533,10 +593,15 @@ impl eframe::App for MatrixApp {
                             }
                         }
 
-                        show_muon_grid(ui, "sus_grid", &self.sus_muons);
+                        show_muon_grid(
+                            ui,
+                            "sus_grid",
+                            &mut self.sus_muons,
+                            &mut self.sus_muon_sort_column,
+                            &mut self.sus_muon_sort_ascending,
+                        );
                     });
             });
-
 
         // ============================
         // BOTTOM BAR
@@ -581,55 +646,56 @@ impl eframe::App for MatrixApp {
                             ui.label("Select mode:");
 
                             egui::ComboBox::from_id_source("mode_selector")
-                                .selected_text(&self.selected_mode.into_readable())
+                                .selected_text(self.selected_mode.into_readable())
                                 .show_ui(ui, |ui| {
-                                    Orientation::North.all_values().iter().for_each(|direction| {
-                                        ui.selectable_value(
-                                            &mut self.selected_mode,
-                                            *direction,
-                                            direction.into_readable(),
-                                        );
-                                    });
+                                    Orientation::North
+                                        .all_values()
+                                        .iter()
+                                        .for_each(|direction| {
+                                            ui.selectable_value(
+                                                &mut self.selected_mode,
+                                                *direction,
+                                                direction.into_readable(),
+                                            );
+                                        });
                                 });
 
                             ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
-                                if ui.button("OK").clicked() {
-                                    if let Ok(depth) = self.input_depth.parse::<i32>()
-                                        && let Ok(width) = self.input_width.parse::<f32>()
-                                    {
-                                        self.pixel_depth = Some(depth);
-                                        self.pixel_width = Some(width);
-                                        self.show_dialog = false;
-                                        if let Some(path) = FileDialog::new().pick_folder() {
-                                            if let Ok(mat) = list_dir(&path) {
-                                                self.current_track = 0;
-                                                self.matricees = mat;
-                                                let mut id_map =
-                                                    vec![vec![0; crate::SIZE]; crate::SIZE];
-                                                self.all_tracks =
-                                                    crate::particle_extractor::extract(
-                                                        &self.matricees[self.current_matrix].tracks
-                                                            [self.current_matrix],
-                                                        &mut id_map,
-                                                        2,
-                                                    )
-                                                    .values()
-                                                    .map(|t| {
-                                                        crate::decoder::Particle::new(
-                                                            t.clone(),
-                                                            self.current_matrix,
-                                                            self.pixel_depth,
-                                                            self.pixel_width,
-                                                            self.selected_mode,
-                                                        )
-                                                    })
-                                                    .collect();
-                                                self.update_image();
-                                            } else {
-                                                self.error = Some("error".to_string());
-                                            }
+                                if ui.button("OK").clicked()
+                                    && let Ok(depth) = self.input_depth.parse::<i32>()
+                                    && let Ok(width) = self.input_width.parse::<f32>()
+                                {
+                                    self.pixel_depth = Some(depth);
+                                    self.pixel_width = Some(width);
+                                    self.show_dialog = false;
+                                    if let Some(path) = FileDialog::new().pick_folder() {
+                                        if let Ok(mat) = list_dir(&path) {
+                                            self.current_track = 0;
+                                            self.matricees = mat;
+                                            let mut id_map =
+                                                vec![vec![0; crate::SIZE]; crate::SIZE];
+                                            self.all_tracks = crate::particle_extractor::extract(
+                                                &self.matricees[self.current_matrix].get_tracks()
+                                                    [self.current_matrix],
+                                                &mut id_map,
+                                                2,
+                                            )
+                                            .values()
+                                            .map(|t| {
+                                                crate::decoder::Particle::new(
+                                                    t.clone(),
+                                                    self.current_matrix,
+                                                    self.pixel_depth,
+                                                    self.pixel_width,
+                                                    self.selected_mode,
+                                                )
+                                            })
+                                            .collect();
+                                            self.update_image();
+                                        } else {
+                                            self.error = Some("error".to_string());
                                         }
                                     }
                                 }
@@ -676,11 +742,11 @@ impl eframe::App for MatrixApp {
                     };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
-                        selected_track.particle_type(&self.matricees[self.current_file].tracks[self.current_matrix]),
+                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
                         selected_track.size(),
-                        selected_track.avg_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.let_avg(&self.matricees[self.current_file].tracks[self.current_matrix]),
-                        selected_track.total_energy(&self.matricees[self.current_file].tracks[self.current_matrix]),
+                        selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        selected_track.total_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
                         selected_track.azimuth(),
                         selected_track.azimuth_offset(),
                         selected_track.abs_angle_primary(),
@@ -726,8 +792,7 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content
-        .push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
+    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
@@ -760,39 +825,74 @@ fn export_csv(content: &str) -> Result<(), String> {
     Ok(())
 }
 use egui_extras::{Column, TableBuilder};
-fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
+fn show_muon_grid(
+    ui: &mut egui::Ui,
+    id: &str,
+    muons: &mut [Muon],
+    sort_column: &mut Option<usize>,
+    sort_ascending: &mut bool,
+) {
     ui.push_id(id, |ui| {
         TableBuilder::new(ui)
             .striped(true)
             .columns(Column::auto(), 9)
             .header(20.0, |mut header| {
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Zenith").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Abs zenith").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("Azimuth").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("azimuth offset").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("total energy").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("size").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("let").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("frame #").wrap(false));
-                });
-                header.col(|ui| {
-                    ui.add(egui::Label::new("file").wrap(false));
-                });
+                let headers = [
+                    "Zenith",
+                    "Abs zenith",
+                    "Azimuth",
+                    "azimuth offset",
+                    "total energy",
+                    "size",
+                    "let",
+                    "frame #",
+                    "file",
+                ];
+
+                for (col_idx, header_text) in headers.iter().enumerate() {
+                    header.col(|ui| {
+                        // Build header text with sort indicator
+                        let header_display = if *sort_column == Some(col_idx) {
+                            if *sort_ascending {
+                                format!("{} ^", header_text)
+                            } else {
+                                format!("{} v", header_text)
+                            }
+                        } else {
+                            header_text.to_string()
+                        };
+
+                        let response = ui.add(
+                            egui::Label::new(header_display)
+                                .wrap(false)
+                                .sense(egui::Sense::click()),
+                        );
+
+                        // Change cursor to pointer on hover
+                        if response.hovered() {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+
+                        if response.clicked() {
+                            if *sort_column == Some(col_idx) {
+                                // Cycle: descending -> ascending -> off
+                                if *sort_ascending {
+                                    // Was ascending, now turn off
+                                    *sort_column = None;
+                                } else {
+                                    // Was descending, now ascending
+                                    *sort_ascending = true;
+                                    sort_muons_in_place(muons, *sort_column, *sort_ascending);
+                                }
+                            } else {
+                                // New column: start with descending
+                                *sort_column = Some(col_idx);
+                                *sort_ascending = false;
+                                sort_muons_in_place(muons, *sort_column, *sort_ascending);
+                            }
+                        }
+                    });
+                }
             })
             .body(|body| {
                 body.rows(18.0, muons.len(), |mut row| {
@@ -828,4 +928,98 @@ fn show_muon_grid(ui: &mut egui::Ui, id: &str, muons: &[Muon]) {
                 });
             });
     });
+}
+
+fn sort_muons_in_place(muons: &mut [Muon], column: Option<usize>, ascending: bool) {
+    if muons.is_empty() {
+        return;
+    }
+
+    if let Some(col) = column {
+        match col {
+            0 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.zenith, b.zenith));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.zenith, b.zenith));
+                }
+            }
+            1 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.abs_angle_primary, b.abs_angle_primary));
+                } else {
+                    muons
+                        .sort_by(|a, b| compare_f32_desc(a.abs_angle_primary, b.abs_angle_primary));
+                }
+            }
+            2 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.azimuth, b.azimuth));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.azimuth, b.azimuth));
+                }
+            }
+            3 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.azimuth_offset, b.azimuth_offset));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.azimuth_offset, b.azimuth_offset));
+                }
+            }
+            4 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.total_energy, b.total_energy));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.total_energy, b.total_energy));
+                }
+            }
+            5 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.size.cmp(&b.size));
+                } else {
+                    muons.sort_by(|a, b| b.size.cmp(&a.size));
+                }
+            }
+            6 => {
+                if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.let_avg, b.let_avg));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(a.let_avg, b.let_avg));
+                }
+            }
+            7 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.frame_index.cmp(&b.frame_index));
+                } else {
+                    muons.sort_by(|a, b| b.frame_index.cmp(&a.frame_index));
+                }
+            }
+            8 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.file.cmp(&b.file));
+                } else {
+                    muons.sort_by(|a, b| b.file.cmp(&a.file));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn compare_f32(a: f32, b: f32) -> std::cmp::Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal),
+    }
+}
+
+fn compare_f32_desc(a: f32, b: f32) -> std::cmp::Ordering {
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => b.partial_cmp(&a).unwrap_or(std::cmp::Ordering::Equal),
+    }
 }

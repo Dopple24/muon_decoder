@@ -130,7 +130,7 @@ impl DimensionalTrack {
         // secondary_angle is 0 = straight down, 90 = horizontal
         // So cos(secondary_angle) gives vertical component (1 at 0°, 0 at 90°)
         // And sin(secondary_angle) gives horizontal component
-        let vertical_component = secondary_angle_rad.cos();  // Positive when coming from above
+        let vertical_component = secondary_angle_rad.cos(); // Positive when coming from above
         let horizontal_magnitude = secondary_angle_rad.sin();
 
         // The in-plane angle (zenith) determines the horizontal direction within the detector plane
@@ -140,7 +140,7 @@ impl DimensionalTrack {
 
         // Apply azimuth rotation (around Y axis)
         let dir_x = dir_x_horizontal * azimuth_rad.cos() - dir_z_horizontal * azimuth_rad.sin();
-        let dir_y = vertical_component;  // Positive so particles come from above
+        let dir_y = vertical_component; // Positive so particles come from above
         let dir_z = dir_x_horizontal * azimuth_rad.sin() + dir_z_horizontal * azimuth_rad.cos();
 
         let direction = Vector3::new(dir_x, dir_y, dir_z).normalize();
@@ -605,7 +605,10 @@ pub fn update_data(tracks: Vec<Vec<(usize, usize)>>, app_borrow: &mut crate::gra
         .collect::<Vec<DimensionalTrack>>();
 
     {
-        *PARTICLES.lock().unwrap() = particles;
+        let mut particle_lock = PARTICLES.lock().unwrap();
+        particle_lock.clear();
+        *particle_lock = particles;
+        particle_lock.shrink_to_fit();
     }
 }
 
