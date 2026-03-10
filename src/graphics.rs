@@ -202,7 +202,7 @@ impl MatrixApp {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track.particle_type(
-                        &self.matricees[self.current_file].tracks[self.current_matrix],
+                        &self.matricees[self.current_file].tracks[self.current_matrix], //has panicked - out of bounds exception self.current_matrix index 95, len 46 
                     ) == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());

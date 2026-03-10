@@ -119,7 +119,7 @@ impl Particle {
             return self.total_energy(grid);
         }
 
-        let let_avg = self.total_energy(grid) / diagonal;
+        let let_avg = self.total_energy(grid) / (diagonal * self.pixel_width / 10000.0); //should be keV / cm (4000 - 5000)
 
         self.let_avg_cache = Some(let_avg);
 
@@ -153,7 +153,8 @@ impl Particle {
 
     fn angle(&self) -> f32 { // 0 is horizontal, 90 is pointing up
         (slope(&linear_regretion(&self.track), &self.track)
-            .clamp(-573.0, 573.0)
+            .min(-573.0)
+            .max(573.0)
             .atan()
             * 180.0
             / PI as f32
@@ -163,7 +164,8 @@ impl Particle {
     pub fn abs_angle_primary(&self) -> f32 { // 0 is pointing up
         90.0 - f32::abs(
             slope(&linear_regretion(&self.track), &self.track)
-                .clamp(-573.0, 573.0)
+                .min(-573.0)
+                .max(573.0)
                 .atan()
                 * 180.0
                 / PI as f32,
