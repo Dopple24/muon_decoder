@@ -20,7 +20,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: build-linux
-          path: target/x86_64-unknown-linux-gnu/release/${{ github.event.repository.name }}
+          path: target/x86_64-unknown-linux-gnu/release/particle_decoder
 
   build-windows:
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: build-windows
-          path: target/x86_64-pc-windows-gnu/release/${{ github.event.repository.name }}.exe
+          path: target/x86_64-pc-windows-gnu/release/particle_decoder.exe
 
   release:
     needs: [build-linux, build-windows]
@@ -53,5 +53,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build-linux/${{ github.event.repository.name }}
-            build-windows/${{ github.event.repository.name }}.exe
+            build-linux/particle_decoder
+            build-windows/particle_decoder.exe
