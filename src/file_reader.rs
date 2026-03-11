@@ -31,7 +31,6 @@ impl Tracks {
         }
 
         let timestamps = get_timestamps(&self.file_path);
-        println!("{:?}", timestamps);
 
         let frames = read_lines(&self.file_content)
             .unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1])
@@ -42,18 +41,12 @@ impl Tracks {
                     if time >= timestamps.len() {
                         chrono::DateTime::default()
                     } else {
-                        println!("{}: {:?}", time, timestamps[time]);
                         timestamps[time]
                     }
                 })
             })
             .collect();
         self.tracks_cache = Some(frames);
-        self.tracks_cache
-            .as_ref()
-            .unwrap()
-            .iter()
-            .for_each(|track| println!("{:?}", track.timestamp));
         self.tracks_cache.as_mut().unwrap()
     }
 
@@ -214,7 +207,7 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
 fn get_timestamps(path: &Path) -> Vec<chrono::DateTime<Utc>> {
     let dsc = match File::open(path.with_added_extension("dsc")) {
         Ok(val) => val,
-        Err(y) => {
+        Err(_) => {
             return Vec::new();
         }
     };

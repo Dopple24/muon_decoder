@@ -468,9 +468,10 @@ impl eframe::App for MatrixApp {
                     self.move_data();
                 }
 
-                if ui.button("Single").clicked() && !self.tracks_to_draw.is_empty() {
+                if ui.button("Single").clicked() {
                     self.current_mode = Mode::Single;
-                    self.current_track = self.current_track.min(self.tracks_to_draw.len() - 1);
+                    self.current_track =
+                        self.current_track.min(self.tracks_to_draw.len().max(1) - 1);
                     self.update_image();
                 }
 
@@ -478,12 +479,12 @@ impl eframe::App for MatrixApp {
                     self.renderer_3d.toggle_window();
                 }
 
-                if ui.button("Combined").clicked() && !self.tracks_to_draw.is_empty() {
+                if ui.button("Combined").clicked() {
                     self.current_mode = Mode::Combined;
                     self.update_image();
                 }
 
-                if ui.button("Compound").clicked() && !self.tracks_to_draw.is_empty() {
+                if ui.button("Compound").clicked() {
                     self.current_mode = Mode::Compound;
                     self.update_image();
                 }
@@ -806,17 +807,18 @@ impl eframe::App for MatrixApp {
 fn build_csv(muons: &[Muon]) -> String {
     let mut content = String::new();
 
-    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,frame#,file\n");
+    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,timestamp,frame#,file\n");
 
     for muon in muons {
         content.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{}\n",
             muon.zenith,
             muon.abs_angle_primary,
             muon.azimuth,
             muon.total_energy,
             muon.size,
             muon.let_avg,
+            muon.timestamp,
             muon.frame_index,
             muon.file.to_string_lossy()
         ));

@@ -160,6 +160,7 @@ impl Particle {
 
     fn angle(&self) -> f32 {
         // 0 is horizontal, 90 is pointing up
+        #[allow(clippy::all)]
         let ang = slope(&linear_regretion(&self.track), &self.track)
             // Prevent near-vertical slopes from blowing up before atan (~±89.9°)
             .max(-573.0)
@@ -172,13 +173,16 @@ impl Particle {
 
     pub fn abs_angle_primary(&self) -> f32 {
         // 0 is pointing up
-        90.0 - f32::abs(
-            slope(&linear_regretion(&self.track), &self.track)
-                .max(-573.0)
-                .min(573.0)
-                .atan()
-                .to_degrees(),
-        )
+        #[allow(clippy::all)]
+        let abs_ang = 90.0
+            - f32::abs(
+                slope(&linear_regretion(&self.track), &self.track)
+                    .max(-573.0)
+                    .min(573.0)
+                    .atan()
+                    .to_degrees(),
+            );
+        abs_ang
     }
 
     pub fn azimuth(&self) -> f32 {
