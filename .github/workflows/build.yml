@@ -1,0 +1,43 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - workflow-test
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install MinGW
+        run: sudo apt-get install -y gcc-mingw-w64-x86-64
+
+      - name: Install Rust targets
+        run: |
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add x86_64-pc-windows-gnu
+
+      - name: Build Linux
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Build Windows
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: x86_64-w64-mingw32-gcc
+        run: cargo build --release --target x86_64-pc-windows-gnu
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux
+          path: target/x86_64-unknown-linux-gnu/release/${{ github.event.repository.name }}
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows
+          path: target/x86_64-pc-windows-gnu/release/${{ github.event.repository.name }}.exe
