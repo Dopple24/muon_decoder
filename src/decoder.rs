@@ -1,5 +1,6 @@
 use crate::SIZE;
 use crate::graphics::Orientation;
+use chrono::{DateTime, Utc};
 use geo::algorithm::line_measures::{Euclidean, Length};
 use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
@@ -27,6 +28,7 @@ pub struct Particle {
     part_type_cache: Option<PartType>,
     let_avg_cache: Option<f32>,
     orientation: Orientation,
+    timestamp: DateTime<Utc>,
 }
 
 pub const DEFAULT_PIXEL_DEPTH: i32 = 300;
@@ -39,6 +41,7 @@ impl Particle {
         pixel_depth: Option<i32>,
         pixel_width: Option<f32>,
         orientation: Orientation,
+        timestamp: Option<DateTime<Utc>>,
     ) -> Self {
         Particle {
             pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_DEPTH),
@@ -51,7 +54,12 @@ impl Particle {
             part_type_cache: None,
             let_avg_cache: None,
             orientation,
+            timestamp: timestamp.unwrap_or_default(),
         }
+    }
+
+    pub fn get_timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
     }
 
     pub fn get_frame_index(&self) -> usize {
@@ -152,25 +160,24 @@ impl Particle {
 
     fn angle(&self) -> f32 {
         // 0 is horizontal, 90 is pointing up
-        (slope(&linear_regretion(&self.track), &self.track)
-            .min(-573.0)
-            .max(573.0)
+        let ang = slope(&linear_regretion(&self.track), &self.track)
+            // Prevent near-vertical slopes from blowing up before atan (~±89.9°)
+            .max(-573.0)
+            .min(573.0)
             .atan()
-            * 180.0
-            / PI as f32
-            + 180.0)
-            % 180.0
+            .to_degrees()
+            + 90.0;
+        if ang > 90.0 { 180.0 - ang } else { -ang }
     }
 
     pub fn abs_angle_primary(&self) -> f32 {
         // 0 is pointing up
         90.0 - f32::abs(
             slope(&linear_regretion(&self.track), &self.track)
-                .min(-573.0)
-                .max(573.0)
+                .max(-573.0)
+                .min(573.0)
                 .atan()
-                * 180.0
-                / PI as f32,
+                .to_degrees(),
         )
     }
 

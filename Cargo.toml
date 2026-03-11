@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.44"
 eframe = "0.26"
 egui_extras = "0.26.0"
 geo = "0.32.0"

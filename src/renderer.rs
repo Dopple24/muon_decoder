@@ -598,6 +598,7 @@ pub fn update_data(tracks: Vec<Vec<(usize, usize)>>, app_borrow: &mut crate::gra
                 app_borrow.pixel_depth,
                 app_borrow.pixel_width,
                 app_borrow.selected_mode,
+                None,
             );
 
             DimensionalTrack::from_particle(particle)

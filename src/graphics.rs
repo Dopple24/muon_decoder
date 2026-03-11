@@ -3,6 +3,7 @@ use crate::{
     file_reader::{Tracks, list_dir},
     particle_extractor::{self},
 };
+use chrono::Utc;
 use eframe::egui::{self, ColorImage};
 use rayon::prelude::*;
 use rfd::FileDialog;
@@ -48,6 +49,7 @@ impl Orientation {
 #[derive(Debug)]
 pub struct Muon {
     file: PathBuf,
+    timestamp: chrono::DateTime<Utc>,
     frame_index: usize,
     total_energy: f32,
     azimuth: f32,
@@ -224,7 +226,7 @@ impl MatrixApp {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track
-                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx]) //has panicked - out of bounds exception self.current_matrix index 95, len 46 
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx].matrix) //has panicked - out of bounds exception self.current_matrix index 95, len 46
                         == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
@@ -340,7 +342,7 @@ impl MatrixApp {
             .into_par_iter()
             .for_each(|(frame_index, p)| {
                 let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
-                let particles = particle_extractor::extract(p, &mut buffer, 2)
+                let particles = particle_extractor::extract(&p.matrix, &mut buffer, 2)
                     .into_values()
                     .collect::<Vec<_>>();
 
@@ -351,31 +353,34 @@ impl MatrixApp {
                         self.pixel_depth,
                         self.pixel_width,
                         self.selected_mode,
+                        Some(p.timestamp),
                     );
-                    let part_type = particle.particle_type(p);
+                    let part_type = particle.particle_type(&p.matrix);
                     if part_type == PartType::Muon {
                         muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
+                            timestamp: p.timestamp,
                             frame_index,
-                            total_energy: particle.total_energy(p),
+                            total_energy: particle.total_energy(&p.matrix),
                             azimuth: particle.azimuth(),
                             azimuth_offset: particle.azimuth_offset(),
                             abs_angle_primary: particle.abs_angle_primary(),
                             zenith: particle.zenith(),
                             size: particle.size(),
-                            let_avg: particle.let_avg(p),
+                            let_avg: particle.let_avg(&p.matrix),
                         })
                     } else if part_type == PartType::SusMuon {
                         sus_muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
+                            timestamp: p.timestamp,
                             frame_index,
-                            total_energy: particle.total_energy(p),
+                            total_energy: particle.total_energy(&p.matrix),
                             azimuth: particle.azimuth(),
                             azimuth_offset: particle.azimuth_offset(),
                             abs_angle_primary: particle.abs_angle_primary(),
                             zenith: particle.zenith(),
                             size: particle.size(),
-                            let_avg: particle.let_avg(p),
+                            let_avg: particle.let_avg(&p.matrix),
                         })
                     }
                     all_buf.lock().unwrap().push(particle);
@@ -397,8 +402,9 @@ impl MatrixApp {
     }
 
     fn init_combined(&mut self) {
+        let curr_matrix = &self.matricees[self.current_file].get_tracks()[self.current_matrix];
         self.all_tracks = crate::particle_extractor::extract(
-            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
+            &curr_matrix.matrix,
             &mut vec![vec![0; crate::SIZE]; crate::SIZE],
             2,
         )
@@ -410,6 +416,7 @@ impl MatrixApp {
                 self.pixel_depth,
                 self.pixel_width,
                 self.selected_mode,
+                Some(curr_matrix.timestamp),
             )
         })
         .collect();
@@ -514,9 +521,13 @@ impl eframe::App for MatrixApp {
 
                 for particle in &mut self.tracks_to_draw {
                     *count
-                        .get_mut(&particle.particle_type(
-                            &self.matricees[self.current_file].get_tracks()[self.current_matrix],
-                        ))
+                        .get_mut(
+                            &particle.particle_type(
+                                &self.matricees[self.current_file].get_tracks()
+                                    [self.current_matrix]
+                                    .matrix,
+                            ),
+                        )
                         .unwrap() += 1;
                 }
 
@@ -676,9 +687,10 @@ impl eframe::App for MatrixApp {
                                             self.matricees = mat;
                                             let mut id_map =
                                                 vec![vec![0; crate::SIZE]; crate::SIZE];
+                                            let curr_matrix = &self.matricees[self.current_matrix]
+                                                .get_tracks()[self.current_matrix];
                                             self.all_tracks = crate::particle_extractor::extract(
-                                                &self.matricees[self.current_matrix].get_tracks()
-                                                    [self.current_matrix],
+                                                &curr_matrix.matrix,
                                                 &mut id_map,
                                                 2,
                                             )
@@ -690,6 +702,7 @@ impl eframe::App for MatrixApp {
                                                     self.pixel_depth,
                                                     self.pixel_width,
                                                     self.selected_mode,
+                                                    Some(curr_matrix.timestamp),
                                                 )
                                             })
                                             .collect();
@@ -735,24 +748,25 @@ impl eframe::App for MatrixApp {
                         self.current_track = self.tracks_to_draw.len().max(1) - 1;
                     }
                     let selected_track = if self.tracks_to_draw.is_empty() {
-                        &mut Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode)
+                        &mut Particle::new(Vec::new(), 0, self.pixel_depth, self.pixel_width, self.selected_mode, /*timestamp*/Some(self.matricees[self.current_file].get_tracks()[self.current_track].timestamp))
                     }
                     else {
                         &mut self.tracks_to_draw[self.current_track]
                     };
                     ui.label(format!(
-                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}",
-                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}\n timestamp: {}",
+                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
                         selected_track.size(),
-                        selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
-                        selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
-                        selected_track.total_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix]),
+                        selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        selected_track.total_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
                         selected_track.azimuth(),
                         selected_track.azimuth_offset(),
                         selected_track.abs_angle_primary(),
                         selected_track.zenith(),
                         selected_track.winding(),
                         selected_track.get_frame_index() + 1,
+                        selected_track.get_timestamp(),
                     ));
                 }
 
@@ -835,7 +849,7 @@ fn show_muon_grid(
     ui.push_id(id, |ui| {
         TableBuilder::new(ui)
             .striped(true)
-            .columns(Column::auto(), 9)
+            .columns(Column::auto(), 10)
             .header(20.0, |mut header| {
                 let headers = [
                     "Zenith",
@@ -845,6 +859,7 @@ fn show_muon_grid(
                     "total energy",
                     "size",
                     "let",
+                    "timestamp",
                     "frame #",
                     "file",
                 ];
@@ -920,6 +935,9 @@ fn show_muon_grid(
                         ui.add(egui::Label::new(muon.let_avg.to_string()).wrap(false));
                     });
                     row.col(|ui| {
+                        ui.add(egui::Label::new(muon.timestamp.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
                         ui.add(egui::Label::new(muon.frame_index.to_string()).wrap(false));
                     });
                     row.col(|ui| {
@@ -989,12 +1007,19 @@ fn sort_muons_in_place(muons: &mut [Muon], column: Option<usize>, ascending: boo
             }
             7 => {
                 if ascending {
+                    muons.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+                } else {
+                    muons.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+                }
+            }
+            8 => {
+                if ascending {
                     muons.sort_by(|a, b| a.frame_index.cmp(&b.frame_index));
                 } else {
                     muons.sort_by(|a, b| b.frame_index.cmp(&a.frame_index));
                 }
             }
-            8 => {
+            9 => {
                 if ascending {
                     muons.sort_by(|a, b| a.file.cmp(&b.file));
                 } else {
