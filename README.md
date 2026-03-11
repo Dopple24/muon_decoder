@@ -39,3 +39,11 @@ Make sure you have Rust installed (https://rust-lang.org). Then:
 git clone https://github.com/Dopple24/muon_decoder
 cd muon_decoder
 cargo build --release
+```
+
+---
+
+## Licence
+Všechen obraz, včetně hlavního obrázku částic, vygenerovaný touto aplikací je licencován pod licencí *CC BY 4.0*.  
+Jakékoliv využití těchto obrázků vyžaduje zmínění této aplikace a jejího autora ve formátu:  
+*Obrázek generován aplikací [particle_decoder](https://github.com/Dopple24/muon_decoder) od [Radka Rouba](https://github.com/Dopple24) <sub>a [Jana Křivského](https://github.com/Jenyyk)</sub>. Licencován pod CC BY 4.0*
