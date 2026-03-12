@@ -235,6 +235,7 @@ struct Texts {
     pub muon_list_timestamp: String,
     pub muon_list_frame_index: String,
     pub muon_list_file: String,
+    pub muon_list_azimuth_offset: String,
     pub save_csv: String,
 }
 

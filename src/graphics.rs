@@ -895,10 +895,11 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
     let mut content = String::new();
 
     content.push_str(&format!(
-        "{},{},{},{},{},{},{},{},{}\n",
+        "{},{},{},{},{},{},{},{},{},{}\n",
         &texts.muon_list_zenith,
         &texts.muon_list_abs_angle_primary,
         &texts.muon_list_azimuth,
+        &texts.muon_list_azimuth_offset,
         &texts.muon_list_total_energy,
         &texts.muon_list_size,
         &texts.muon_list_let_avg,
@@ -909,10 +910,11 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
 
     for muon in muons {
         content.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{}\n",
             muon.zenith,
             muon.abs_angle_primary,
             muon.azimuth,
+            muon.azimuth_offset,
             muon.total_energy,
             muon.size,
             muon.let_avg,
@@ -956,6 +958,7 @@ fn show_muon_grid(
                     &texts.muon_list_zenith,
                     &texts.muon_list_abs_angle_primary,
                     &texts.muon_list_azimuth,
+                    &texts.muon_list_azimuth_offset,
                     &texts.muon_list_total_energy,
                     &texts.muon_list_size,
                     &texts.muon_list_let_avg,
