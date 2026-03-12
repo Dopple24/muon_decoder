@@ -1,4 +1,5 @@
 use crate::{
+    Langs,
     decoder::{PartType, Particle},
     file_reader::{Tracks, list_dir},
     particle_extractor::{self},
@@ -25,12 +26,12 @@ pub enum Orientation {
     East,
 }
 impl Orientation {
-    fn into_readable(self) -> String {
+    fn into_readable(self, texts: &crate::Texts) -> String {
         match self {
-            Self::North => "North".to_string(),
-            Self::South => "South".to_string(),
-            Self::West => "West".to_string(),
-            Self::East => "East".to_string(),
+            Self::North => texts.north.to_string(),
+            Self::South => texts.south.to_string(),
+            Self::West => texts.west.to_string(),
+            Self::East => texts.east.to_string(),
         }
     }
     pub fn azimuth(&self) -> f32 {
@@ -64,6 +65,10 @@ pub struct Muon {
 pub struct MatrixApp {
     //config from config.env
     config: crate::Config,
+
+    texts: crate::Texts,
+    current_lang: Langs,
+    selected_lang: Langs,
 
     matricees: Vec<Tracks>,
     current_file: usize,
@@ -107,9 +112,18 @@ pub struct MatrixApp {
 }
 
 impl MatrixApp {
-    pub fn new(tracks: Vec<Particle>, scale: usize, config: &crate::Config) -> Self {
+    pub fn new(
+        tracks: Vec<Particle>,
+        scale: usize,
+        config: &crate::Config,
+        texts: &crate::Texts,
+        lang: &Langs,
+    ) -> Self {
         let mut app = Self {
             config: config.clone(),
+            texts: texts.clone(),
+            current_lang: lang.clone(),
+            selected_lang: lang.clone(),
             matricees: vec![Tracks::default()],
             current_file: 0,
             current_matrix: 0,
@@ -473,35 +487,35 @@ impl eframe::App for MatrixApp {
         // ============================
         egui::TopBottomPanel::top("top_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Particle Matrix Viewer");
+                ui.heading(&self.texts.title);
 
                 ui.separator();
 
-                if ui.button("◀ Prev").clicked() {
+                if ui.button(&self.texts.arrow_left).clicked() {
                     self.move_data_back();
                 }
 
-                if ui.button("Next ▶").clicked() {
+                if ui.button(&self.texts.arrow_right).clicked() {
                     self.move_data();
                 }
 
-                if ui.button("Single").clicked() {
+                if ui.button(&self.texts.single_mode).clicked() {
                     self.current_mode = Mode::Single;
                     self.current_track =
                         self.current_track.min(self.tracks_to_draw.len().max(1) - 1);
                     self.update_image();
                 }
 
-                if ui.button("3D View").clicked() {
+                if ui.button(&self.texts.cubic_view).clicked() {
                     self.renderer_3d.toggle_window();
                 }
 
-                if ui.button("Combined").clicked() {
+                if ui.button(&self.texts.combined_mode).clicked() {
                     self.current_mode = Mode::Combined;
                     self.update_image();
                 }
 
-                if ui.button("Compound").clicked() {
+                if ui.button(&self.texts.compound_mode).clicked() {
                     self.current_mode = Mode::Compound;
                     self.update_image();
                 }
@@ -509,10 +523,30 @@ impl eframe::App for MatrixApp {
                 ui.separator();
 
                 ui.label(match self.current_mode {
-                    Mode::Single => "Mode: Single Track",
-                    Mode::Combined => "Mode: Combined",
-                    Mode::Compound => "Mode: Compound",
+                    Mode::Single => format!("{}: {}", &self.texts.mode, &self.texts.single_mode),
+                    Mode::Combined => {
+                        format!("{}: {}", &self.texts.mode, &self.texts.combined_mode)
+                    }
+                    Mode::Compound => {
+                        format!("{}: {}", &self.texts.mode, &self.texts.compound_mode)
+                    }
                 });
+
+                egui::ComboBox::from_id_source("lang_selector")
+                    .selected_text(self.selected_lang.to_string())
+                    .show_ui(ui, |ui| {
+                        Langs::list().iter().for_each(|lang| {
+                            ui.selectable_value(
+                                &mut self.selected_lang,
+                                lang.clone(),
+                                lang.to_string(),
+                            );
+                        });
+                    });
+                if self.selected_lang != self.current_lang {
+                    self.texts = crate::Langs::change_lang(&self.selected_lang);
+                    self.current_lang = self.selected_lang.clone();
+                }
             });
         });
 
@@ -523,7 +557,7 @@ impl eframe::App for MatrixApp {
             .resizable(false)
             .min_width(100.0)
             .show(ctx, |ui| {
-                ui.heading("📊 Particles");
+                ui.heading(&self.texts.particles);
 
                 let mut count = HashMap::new();
                 for p in [
@@ -557,13 +591,13 @@ impl eframe::App for MatrixApp {
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
                         for (label, ty) in [
-                            ("Alpha", PartType::Alpha),
-                            ("Beta", PartType::Beta),
-                            ("Gamma", PartType::Gamma),
-                            ("Muon", PartType::Muon),
-                            ("Int muon", PartType::SusMuon),
-                            ("Unknown", PartType::Unknown),
-                            ("Short muon", PartType::TooShortMuon),
+                            (&self.texts.alpha, PartType::Alpha),
+                            (&self.texts.beta, PartType::Beta),
+                            (&self.texts.gamma, PartType::Gamma),
+                            (&self.texts.muon, PartType::Muon),
+                            (&self.texts.sus_muon, PartType::SusMuon),
+                            (&self.texts.unknown, PartType::Unknown),
+                            (&self.texts.too_short_muon, PartType::TooShortMuon),
                         ] {
                             ui.label(label);
                             ui.label(count.get(&ty).unwrap().to_string());
@@ -571,13 +605,14 @@ impl eframe::App for MatrixApp {
                         }
                     });
 
-                let response_al = ui.checkbox(&mut self.show_alpha, "Alpha");
-                let response_be = ui.checkbox(&mut self.show_beta, "Beta");
-                let response_ga = ui.checkbox(&mut self.show_gamma, "Gamma");
-                let response_mu = ui.checkbox(&mut self.show_muon, "Muon");
-                let response_sm = ui.checkbox(&mut self.show_sus_muon, "Sus muon");
-                let response_un = ui.checkbox(&mut self.show_unknown, "Unknown");
-                let response_sh = ui.checkbox(&mut self.show_too_short_muon, "Short muon");
+                let response_al = ui.checkbox(&mut self.show_alpha, &self.texts.alpha);
+                let response_be = ui.checkbox(&mut self.show_beta, &self.texts.beta);
+                let response_ga = ui.checkbox(&mut self.show_gamma, &self.texts.gamma);
+                let response_mu = ui.checkbox(&mut self.show_muon, &self.texts.muon);
+                let response_sm = ui.checkbox(&mut self.show_sus_muon, &self.texts.sus_muon);
+                let response_un = ui.checkbox(&mut self.show_unknown, &self.texts.unknown);
+                let response_sh =
+                    ui.checkbox(&mut self.show_too_short_muon, &self.texts.too_short_muon);
 
                 if response_al.changed()
                     || response_be.changed()
@@ -603,11 +638,11 @@ impl eframe::App for MatrixApp {
                 egui::ScrollArea::horizontal()
                     .id_source("muons_scroll")
                     .show(ui, |ui| {
-                        ui.heading("📊 Muons");
-                        if ui.button("export").clicked() {
-                            let csv = build_csv(&self.muons);
+                        ui.heading(&self.texts.muon_section_header);
+                        if ui.button(&self.texts.export).clicked() {
+                            let csv = build_csv(&self.muons, &self.texts);
 
-                            if let Err(e) = export_csv(&csv) {
+                            if let Err(e) = export_csv(&csv, &self.texts) {
                                 self.error = Some(e);
                             }
                         }
@@ -618,12 +653,13 @@ impl eframe::App for MatrixApp {
                             &mut self.muons,
                             &mut self.muon_sort_column,
                             &mut self.muon_sort_ascending,
+                            &self.texts,
                         );
-                        ui.heading("📊 Sus Muons");
-                        if ui.button("export").clicked() {
-                            let csv = build_csv(&self.sus_muons);
+                        ui.heading(&self.texts.sus_muon_section_header);
+                        if ui.button(&self.texts.export).clicked() {
+                            let csv = build_csv(&self.sus_muons, &self.texts);
 
-                            if let Err(e) = export_csv(&csv) {
+                            if let Err(e) = export_csv(&csv, &self.texts) {
                                 self.error = Some(e);
                             }
                         }
@@ -634,6 +670,7 @@ impl eframe::App for MatrixApp {
                             &mut self.sus_muons,
                             &mut self.sus_muon_sort_column,
                             &mut self.sus_muon_sort_ascending,
+                            &self.texts,
                         );
                     });
             });
@@ -643,53 +680,53 @@ impl eframe::App for MatrixApp {
         // ============================
         egui::TopBottomPanel::bottom("bottom_bar").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("📂 Open File").clicked() {
+                if ui.button(&self.texts.import).clicked() {
                     self.show_dialog = true;
                 }
                 if self.show_dialog {
-                    egui::Window::new("Enter Depth and Width")
+                    egui::Window::new(&self.texts.import_dialog_title)
                         .collapsible(false)
                         .resizable(false)
                         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                         .show(ctx, |ui| {
                             ui.vertical_centered(|ui| {
-                                ui.heading("Dimensions");
+                                ui.heading(&self.texts.import_dialog_dimensions);
                             });
 
                             ui.add_space(10.0);
 
                             ui.horizontal(|ui| {
-                                ui.label("Depth:");
+                                ui.label(format!("{}:", &self.texts.import_dialog_depth));
                                 ui.add(
                                     egui::TextEdit::singleline(&mut self.input_depth)
-                                        .hint_text("e.g. 30")
+                                        .hint_text(self.config.default_pixel_depth.to_string())
                                         .desired_width(100.0),
                                 );
                             });
 
                             ui.horizontal(|ui| {
-                                ui.label("Width:");
+                                ui.label(format!("{}:", &self.texts.import_dialog_width));
                                 ui.add(
                                     egui::TextEdit::singleline(&mut self.input_width)
-                                        .hint_text("e.g. 30")
+                                        .hint_text(self.config.default_pixel_width.to_string())
                                         .desired_width(100.0),
                                 );
                             });
                             ui.horizontal(|ui| {
-                                ui.label("Min muon size:");
+                                ui.label(format!("{}:", &self.texts.import_dialog_min_muon_size));
                                 ui.add(
                                     egui::TextEdit::singleline(&mut self.input_min_muon_size)
-                                        .hint_text("20")
+                                        .hint_text(self.config.default_min_muon_size.to_string())
                                         .desired_width(100.0),
                                 );
                             });
 
                             ui.add_space(10.0);
 
-                            ui.label("Select mode:");
+                            ui.label(format!("{}:", &self.texts.import_dialog_compass));
 
                             egui::ComboBox::from_id_source("mode_selector")
-                                .selected_text(self.selected_mode.into_readable())
+                                .selected_text(self.selected_mode.into_readable(&self.texts))
                                 .show_ui(ui, |ui| {
                                     Orientation::North
                                         .all_values()
@@ -698,7 +735,7 @@ impl eframe::App for MatrixApp {
                                             ui.selectable_value(
                                                 &mut self.selected_mode,
                                                 *direction,
-                                                direction.into_readable(),
+                                                direction.into_readable(&self.texts),
                                             );
                                         });
                                 });
@@ -706,7 +743,7 @@ impl eframe::App for MatrixApp {
                             ui.add_space(15.0);
 
                             ui.horizontal(|ui| {
-                                if ui.button("OK").clicked()
+                                if ui.button(&self.texts.import_dialog_confirm).clicked()
                                     && let Ok(depth) = self.input_depth.parse::<i32>()
                                     && let Ok(width) = self.input_width.parse::<f32>()
                                     && let Ok(min_muon_size) =
@@ -749,7 +786,7 @@ impl eframe::App for MatrixApp {
                                     }
                                 }
 
-                                if ui.button("Cancel").clicked() {
+                                if ui.button(&self.texts.import_dialog_cancel).clicked() {
                                     self.show_dialog = false;
                                 }
                             });
@@ -773,9 +810,11 @@ impl eframe::App for MatrixApp {
                 ui.add_space(8.0);
 
                 ui.label(format!(
-                    "Track {}/{}\n file here: {}",
+                    "{} {}/{}\n {}: {}",
+                    self.texts.tracks,
                     self.current_track + 1,
                     self.tracks_to_draw.len(),
+                    self.texts.file_location,
                     self.matricees[self.current_file].file_path.to_string_lossy()
                 ));
 
@@ -790,25 +829,38 @@ impl eframe::App for MatrixApp {
                         &mut self.tracks_to_draw[self.current_track]
                     };
                     ui.label(format!(
-                        "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}\n timestamp: {}",
+                        "{}: {:?}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {}\n{}: {:?}\n{}: {}",
+                        &self.texts.particle_type_label,
                         selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix, &self.min_muon_size, &self.config.default_min_muon_size),
+                        &self.texts.size_label,
                         selected_track.size(),
+                        &self.texts.avg_energy_label,
                         selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        &self.texts.let_avg_label,
                         selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        &self.texts.total_energy_label,
                         selected_track.total_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        &self.texts.azimuth_label,
                         selected_track.azimuth(),
+                        &self.texts.azimuth_offset_label,
                         selected_track.azimuth_offset(),
+                        &self.texts.abs_angle_primary_label,
                         selected_track.abs_angle_primary(),
+                        &self.texts.zenith_label,
                         selected_track.zenith(),
+                        &self.texts.winding_label,
                         selected_track.winding(),
+                        &self.texts.get_frame_index_label,
                         selected_track.get_frame_index() + 1,
+                        &self.texts.get_timestamp_label,
                         selected_track.get_timestamp(),
                     ));
                 }
 
                 else if self.current_mode == Mode::Combined && !self.tracks_to_draw.is_empty(){
                     ui.label(format!(
-                        "frame number: {}",
+                        "{}: {}",
+                        &self.texts.get_frame_index_label,
                         &self.tracks_to_draw[self.current_track.min(self.tracks_to_draw.len())].get_frame_index() + 1
                     ));
                 }
@@ -832,17 +884,28 @@ impl eframe::App for MatrixApp {
                     ui.heading("⚠ Error");
                     ui.label(self.error.as_ref().unwrap());
                     ui.add_space(10.0);
-                    if ui.button("OK").clicked() {
+                    if ui.button(&self.texts.import_dialog_confirm).clicked() {
                         self.error = None;
                     }
                 });
         }
     }
 }
-fn build_csv(muons: &[Muon]) -> String {
+fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
     let mut content = String::new();
 
-    content.push_str("zenith,abs_angle,azimuth,total_energy,size,LET,timestamp,frame#,file\n");
+    content.push_str(&format!(
+        "{},{},{},{},{},{},{},{},{}\n",
+        &texts.muon_list_zenith,
+        &texts.muon_list_abs_angle_primary,
+        &texts.muon_list_azimuth,
+        &texts.muon_list_total_energy,
+        &texts.muon_list_size,
+        &texts.muon_list_let_avg,
+        &texts.muon_list_timestamp,
+        &texts.muon_list_frame_index,
+        &texts.muon_list_file,
+    ));
 
     for muon in muons {
         content.push_str(&format!(
@@ -861,9 +924,9 @@ fn build_csv(muons: &[Muon]) -> String {
 
     content
 }
-fn export_csv(content: &str) -> Result<(), String> {
+fn export_csv(content: &str, texts: &crate::Texts) -> Result<(), String> {
     if let Some(path) = FileDialog::new()
-        .set_title("Save CSV")
+        .set_title(&texts.save_csv)
         .add_filter("CSV files", &["csv"])
         .set_file_name("data.csv")
         .save_file()
@@ -882,6 +945,7 @@ fn show_muon_grid(
     muons: &mut [Muon],
     sort_column: &mut Option<usize>,
     sort_ascending: &mut bool,
+    texts: &crate::Texts,
 ) {
     ui.push_id(id, |ui| {
         TableBuilder::new(ui)
@@ -889,16 +953,15 @@ fn show_muon_grid(
             .columns(Column::auto(), 10)
             .header(20.0, |mut header| {
                 let headers = [
-                    "Zenith",
-                    "Abs zenith",
-                    "Azimuth",
-                    "azimuth offset",
-                    "total energy",
-                    "size",
-                    "let",
-                    "timestamp",
-                    "frame #",
-                    "file",
+                    &texts.muon_list_zenith,
+                    &texts.muon_list_abs_angle_primary,
+                    &texts.muon_list_azimuth,
+                    &texts.muon_list_total_energy,
+                    &texts.muon_list_size,
+                    &texts.muon_list_let_avg,
+                    &texts.muon_list_timestamp,
+                    &texts.muon_list_frame_index,
+                    &texts.muon_list_file,
                 ];
 
                 for (col_idx, header_text) in headers.iter().enumerate() {

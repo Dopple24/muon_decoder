@@ -2934,6 +2934,7 @@ dependencies = [
  "rayon",
  "rfd",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

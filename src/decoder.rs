@@ -42,8 +42,8 @@ impl Particle {
         timestamp: Option<DateTime<Utc>>,
     ) -> Self {
         Particle {
-            pixel_depth: pixel_depth,
-            pixel_width: pixel_width,
+            pixel_depth,
+            pixel_width,
             track,
             frame_index,
             total_energy_cache: None,
