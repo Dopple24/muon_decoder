@@ -10,8 +10,6 @@ use rfd::FileDialog;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, io::Write, path::PathBuf};
 
-pub const DEFAULT_MIN_MUON_SIZE: usize = 20;
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Mode {
     Single,
@@ -64,6 +62,9 @@ pub struct Muon {
 
 #[derive(Debug)]
 pub struct MatrixApp {
+    //config from config.env
+    config: crate::Config,
+
     matricees: Vec<Tracks>,
     current_file: usize,
     current_matrix: usize,
@@ -90,9 +91,9 @@ pub struct MatrixApp {
     input_depth: String,
     input_width: String,
     input_min_muon_size: String,
-    pub pixel_depth: Option<i32>,
-    pub pixel_width: Option<f32>,
-    pub min_muon_size: Option<usize>,
+    pub pixel_depth: i32,
+    pub pixel_width: f32,
+    pub min_muon_size: usize,
     pub selected_mode: Orientation,
     renderer_3d: crate::renderer::Renderer3D,
 
@@ -106,8 +107,9 @@ pub struct MatrixApp {
 }
 
 impl MatrixApp {
-    pub fn new(tracks: Vec<Particle>, scale: usize) -> Self {
+    pub fn new(tracks: Vec<Particle>, scale: usize, config: &crate::Config) -> Self {
         let mut app = Self {
+            config: config.clone(),
             matricees: vec![Tracks::default()],
             current_file: 0,
             current_matrix: 0,
@@ -132,13 +134,13 @@ impl MatrixApp {
             show_unknown: true,
             show_too_short_muon: true,
             show_dialog: false,
-            input_min_muon_size: DEFAULT_MIN_MUON_SIZE.to_string(),
-            input_depth: crate::decoder::DEFAULT_PIXEL_DEPTH.to_string(),
-            input_width: crate::decoder::DEFAULT_PIXEL_WIDTH.to_string(),
-            pixel_depth: None,
-            pixel_width: None,
+            input_min_muon_size: config.default_min_muon_size.to_string(),
+            input_depth: config.default_pixel_depth.to_string(),
+            input_width: config.default_pixel_width.to_string(),
+            pixel_depth: config.default_pixel_depth as i32,
+            pixel_width: config.default_pixel_width,
             selected_mode: Orientation::North,
-            min_muon_size: None,
+            min_muon_size: config.default_min_muon_size,
             renderer_3d: crate::renderer::Renderer3D::new(),
             muon_sort_column: None,
             muon_sort_ascending: true,
@@ -235,7 +237,7 @@ impl MatrixApp {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track
-                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx].matrix, self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE)) //has panicked - out of bounds exception self.current_matrix index 95, len 46
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx].matrix, &self.min_muon_size, &self.config.default_min_muon_size) //has panicked - out of bounds exception self.current_matrix index 95, len 46
                         == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
@@ -350,10 +352,11 @@ impl MatrixApp {
             .par_bridge()
             .into_par_iter()
             .for_each(|(frame_index, p)| {
-                let mut buffer = vec![vec![0; crate::SIZE]; crate::SIZE];
-                let particles = particle_extractor::extract(&p.matrix, &mut buffer, 2)
-                    .into_values()
-                    .collect::<Vec<_>>();
+                let mut buffer = vec![vec![0; self.config.size]; self.config.size];
+                let particles =
+                    particle_extractor::extract(&p.matrix, &mut buffer, 2, self.config.size)
+                        .into_values()
+                        .collect::<Vec<_>>();
 
                 for part in &particles {
                     let mut particle = Particle::new(
@@ -366,7 +369,8 @@ impl MatrixApp {
                     );
                     let part_type = particle.particle_type(
                         &p.matrix,
-                        self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE),
+                        &self.min_muon_size,
+                        &self.config.default_min_muon_size,
                     );
                     if part_type == PartType::Muon {
                         muons_buf.lock().unwrap().push(Muon {
@@ -417,8 +421,9 @@ impl MatrixApp {
         let curr_matrix = &self.matricees[self.current_file].get_tracks()[self.current_matrix];
         self.all_tracks = crate::particle_extractor::extract(
             &curr_matrix.matrix,
-            &mut vec![vec![0; crate::SIZE]; crate::SIZE],
+            &mut vec![vec![0; self.config.size]; self.config.size],
             2,
+            self.config.size,
         )
         .values()
         .map(|t| {
@@ -540,7 +545,8 @@ impl eframe::App for MatrixApp {
                                 &self.matricees[self.current_file].get_tracks()
                                     [self.current_matrix]
                                     .matrix,
-                                self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE),
+                                &self.min_muon_size,
+                                &self.config.default_min_muon_size,
                             ),
                         )
                         .unwrap() += 1;
@@ -706,9 +712,9 @@ impl eframe::App for MatrixApp {
                                     && let Ok(min_muon_size) =
                                         self.input_min_muon_size.parse::<usize>()
                                 {
-                                    self.pixel_depth = Some(depth);
-                                    self.pixel_width = Some(width);
-                                    self.min_muon_size = Some(min_muon_size.max(4));
+                                    self.pixel_depth = depth;
+                                    self.pixel_width = width;
+                                    self.min_muon_size = min_muon_size.max(4);
                                     self.show_dialog = false;
                                     if let Some(path) = FileDialog::new().pick_folder() {
                                         if let Ok(mat) = list_dir(&path) {
@@ -722,6 +728,7 @@ impl eframe::App for MatrixApp {
                                                 &curr_matrix.matrix,
                                                 &mut id_map,
                                                 2,
+                                                self.config.size,
                                             )
                                             .values()
                                             .map(|t| {
@@ -784,7 +791,7 @@ impl eframe::App for MatrixApp {
                     };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}\n timestamp: {}",
-                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix, self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE)),
+                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix, &self.min_muon_size, &self.config.default_min_muon_size),
                         selected_track.size(),
                         selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
                         selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),

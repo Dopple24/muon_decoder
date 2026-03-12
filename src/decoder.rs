@@ -32,21 +32,18 @@ pub struct Particle {
     timestamp: DateTime<Utc>,
 }
 
-pub const DEFAULT_PIXEL_DEPTH: i32 = 300;
-pub const DEFAULT_PIXEL_WIDTH: f32 = 54.6875;
-
 impl Particle {
     pub fn new(
         track: Vec<(usize, usize)>,
         frame_index: usize,
-        pixel_depth: Option<i32>,
-        pixel_width: Option<f32>,
+        pixel_depth: i32,
+        pixel_width: f32,
         orientation: Orientation,
         timestamp: Option<DateTime<Utc>>,
     ) -> Self {
         Particle {
-            pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_DEPTH),
-            pixel_width: pixel_width.unwrap_or(DEFAULT_PIXEL_WIDTH),
+            pixel_depth: pixel_depth,
+            pixel_width: pixel_width,
             track,
             frame_index,
             total_energy_cache: None,
@@ -136,7 +133,9 @@ impl Particle {
     }
 
     fn secondary_angle(&mut self) -> f32 {
-        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width)).asin() * 180.0 / PI as f32
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width))
+            .asin()
+            .to_degrees()
     }
 
     pub fn roundness(&mut self) -> f32 {
@@ -198,7 +197,12 @@ impl Particle {
         self.secondary_angle()
     }
 
-    pub fn particle_type(&mut self, grid: &[f32], min_muon_size: usize) -> PartType {
+    pub fn particle_type(
+        &mut self,
+        grid: &[f32],
+        min_muon_size: &usize,
+        default_min_muon_size: &usize,
+    ) -> PartType {
         if let Some(pt) = self.part_type_cache {
             return pt;
         }
@@ -211,9 +215,9 @@ impl Particle {
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
                     if self.winding() < 0.25 {
                         //consider 0.2
-                        if size > min_muon_size {
+                        if &size > min_muon_size {
                             PartType::Muon
-                        } else if size > crate::graphics::DEFAULT_MIN_MUON_SIZE {
+                        } else if &size > default_min_muon_size {
                             PartType::TooShortMuon
                         } else {
                             PartType::Beta
@@ -238,19 +242,16 @@ impl Particle {
                     Second part of the check was added for the purposes of detecting muons which have made an electron excited
                     It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 100 or more pixels
                     */
-                    //consider removing the second check
                     if self.winding() > 0.4 {
                         if !(self.size() > 100 && self.winding() < 4.0) {
                             PartType::Beta
                         } else {
                             PartType::SusMuon
                         }
+                    } else if &size > min_muon_size {
+                        PartType::Muon
                     } else {
-                        if size > min_muon_size {
-                            PartType::Muon
-                        } else {
-                            PartType::TooShortMuon
-                        }
+                        PartType::TooShortMuon
                     }
                 } else if self.max_energy(grid) < 200.0 {
                     PartType::Unknown
