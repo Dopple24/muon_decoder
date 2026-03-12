@@ -18,8 +18,10 @@ const DEFAULT_PIXEL_WIDTH: f32 = 54.6875;
 const SIZE: usize = 256;
 const LANG: Langs = Langs::En;
 
-const CONFIG_PATH: &str = "./assets/config.env";
-const LOCALES_PATH: &str = "./locales";
+const CONFIG: &str = include_str!("../config.env");
+const EN: &str = include_str!("../locales/en.json");
+const CS: &str = include_str!("../locales/cs.json");
+const CONFIG_PATH: &str = "../config.env";
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -32,8 +34,12 @@ struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        from_filename(CONFIG_PATH).ok();
-
+        if Path::new(CONFIG_PATH).exists() {
+            from_filename(CONFIG_PATH).ok();
+        } else {
+            fs::write("config.env", CONFIG).unwrap();
+            from_filename(CONFIG_PATH).ok();
+        }
         Self {
             default_min_muon_size: get_env("DEFAULT_MIN_MUON_SIZE", DEFAULT_MIN_MUON_SIZE),
             default_pixel_depth: get_env("DEFAULT_PIXEL_DEPTH", DEFAULT_PIXEL_DEPTH),
@@ -234,7 +240,10 @@ struct Texts {
 
 impl Texts {
     fn load(lang: &Langs) -> Self {
-        let text = fs::read_to_string(format!("{}/{}.json", LOCALES_PATH, lang)).unwrap();
+        let text = match lang {
+            Langs::En => EN.to_string(),
+            Langs::Cs => CS.to_string(),
+        };
         serde_json::from_str(&text).unwrap()
     }
 }
