@@ -14,6 +14,7 @@ pub enum PartType {
     Muon,
     SusMuon,
     Unknown,
+    TooShortMuon,
 }
 
 #[derive(Clone, Debug)]
@@ -153,7 +154,7 @@ impl Particle {
             return val;
         }
 
-        let val = winding_of_path(&self.track).abs(); // CALL YOUR HELPER HERE
+        let val = winding_of_path(&self.track).abs();
         self.winding_cache = Some(val);
         val
     }
@@ -197,39 +198,26 @@ impl Particle {
         self.secondary_angle()
     }
 
-    pub fn particle_type(&mut self, grid: &[f32]) -> PartType {
+    pub fn particle_type(&mut self, grid: &[f32], min_muon_size: usize) -> PartType {
         if let Some(pt) = self.part_type_cache {
             return pt;
         }
 
-        let pt = match self.size() {
+        let size = self.size();
+        let pt = match size {
             0..4 => return PartType::Gamma,
-            4..20 => {
+            4..30 => {
                 #[allow(clippy::if_same_then_else)]
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
-                    #[allow(clippy::if_same_then_else)]
-                    if self.winding() < 1.0 {
-                        PartType::Beta
-                    } else {
-                        PartType::Beta
-                    }
-                } else if self.max_energy(grid) > 100.0 {
-                    if self.roundness() > 0.4 {
-                        PartType::Unknown //small blob
-                    } else {
-                        PartType::Unknown
-                    }
-                } else {
-                    PartType::Unknown
-                }
-            }
-            20..30 => {
-                #[allow(clippy::if_same_then_else)]
-                if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
-                    #[allow(clippy::if_same_then_else)]
                     if self.winding() < 0.25 {
                         //consider 0.2
-                        PartType::Muon
+                        if size > min_muon_size {
+                            PartType::Muon
+                        } else if size > crate::graphics::DEFAULT_MIN_MUON_SIZE {
+                            PartType::TooShortMuon
+                        } else {
+                            PartType::Beta
+                        }
                     } else {
                         PartType::Beta
                     }
@@ -258,7 +246,11 @@ impl Particle {
                             PartType::SusMuon
                         }
                     } else {
-                        PartType::Muon
+                        if size > min_muon_size {
+                            PartType::Muon
+                        } else {
+                            PartType::TooShortMuon
+                        }
                     }
                 } else if self.max_energy(grid) < 200.0 {
                     PartType::Unknown

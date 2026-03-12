@@ -10,6 +10,8 @@ use rfd::FileDialog;
 use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, io::Write, path::PathBuf};
 
+pub const DEFAULT_MIN_MUON_SIZE: usize = 20;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Mode {
     Single,
@@ -82,12 +84,15 @@ pub struct MatrixApp {
     show_muon: bool,
     show_sus_muon: bool,
     show_unknown: bool,
+    show_too_short_muon: bool,
 
     show_dialog: bool,
     input_depth: String,
     input_width: String,
+    input_min_muon_size: String,
     pub pixel_depth: Option<i32>,
     pub pixel_width: Option<f32>,
+    pub min_muon_size: Option<usize>,
     pub selected_mode: Orientation,
     renderer_3d: crate::renderer::Renderer3D,
 
@@ -125,12 +130,15 @@ impl MatrixApp {
             show_muon: true,
             show_sus_muon: true,
             show_unknown: true,
+            show_too_short_muon: true,
             show_dialog: false,
+            input_min_muon_size: DEFAULT_MIN_MUON_SIZE.to_string(),
             input_depth: crate::decoder::DEFAULT_PIXEL_DEPTH.to_string(),
             input_width: crate::decoder::DEFAULT_PIXEL_WIDTH.to_string(),
             pixel_depth: None,
             pixel_width: None,
             selected_mode: Orientation::North,
+            min_muon_size: None,
             renderer_3d: crate::renderer::Renderer3D::new(),
             muon_sort_column: None,
             muon_sort_ascending: true,
@@ -212,6 +220,7 @@ impl MatrixApp {
             (self.show_muon, PartType::Muon),
             (self.show_sus_muon, PartType::SusMuon),
             (self.show_unknown, PartType::Unknown),
+            (self.show_too_short_muon, PartType::TooShortMuon),
         ];
 
         self.tracks_to_draw.clear();
@@ -226,7 +235,7 @@ impl MatrixApp {
             if filters.iter().any(|(show, ty)| {
                 *show
                     && track
-                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx].matrix) //has panicked - out of bounds exception self.current_matrix index 95, len 46
+                        .particle_type(&self.matricees[self.current_file].get_tracks()[matrix_idx].matrix, self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE)) //has panicked - out of bounds exception self.current_matrix index 95, len 46
                         == *ty
             }) {
                 self.tracks_to_draw.push(track.clone());
@@ -355,7 +364,10 @@ impl MatrixApp {
                         self.selected_mode,
                         Some(p.timestamp),
                     );
-                    let part_type = particle.particle_type(&p.matrix);
+                    let part_type = particle.particle_type(
+                        &p.matrix,
+                        self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE),
+                    );
                     if part_type == PartType::Muon {
                         muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
@@ -516,6 +528,7 @@ impl eframe::App for MatrixApp {
                     PartType::Muon,
                     PartType::SusMuon,
                     PartType::Unknown,
+                    PartType::TooShortMuon,
                 ] {
                     count.insert(p, 0usize);
                 }
@@ -527,6 +540,7 @@ impl eframe::App for MatrixApp {
                                 &self.matricees[self.current_file].get_tracks()
                                     [self.current_matrix]
                                     .matrix,
+                                self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE),
                             ),
                         )
                         .unwrap() += 1;
@@ -541,8 +555,9 @@ impl eframe::App for MatrixApp {
                             ("Beta", PartType::Beta),
                             ("Gamma", PartType::Gamma),
                             ("Muon", PartType::Muon),
-                            ("Sus muon", PartType::SusMuon),
+                            ("Int muon", PartType::SusMuon),
                             ("Unknown", PartType::Unknown),
+                            ("Short muon", PartType::TooShortMuon),
                         ] {
                             ui.label(label);
                             ui.label(count.get(&ty).unwrap().to_string());
@@ -556,12 +571,14 @@ impl eframe::App for MatrixApp {
                 let response_mu = ui.checkbox(&mut self.show_muon, "Muon");
                 let response_sm = ui.checkbox(&mut self.show_sus_muon, "Sus muon");
                 let response_un = ui.checkbox(&mut self.show_unknown, "Unknown");
+                let response_sh = ui.checkbox(&mut self.show_too_short_muon, "Short muon");
 
                 if response_al.changed()
                     || response_be.changed()
                     || response_ga.changed()
                     || response_mu.changed()
                     || response_sm.changed()
+                    || response_sh.changed()
                     || response_un.changed()
                 {
                     self.update_image();
@@ -652,6 +669,14 @@ impl eframe::App for MatrixApp {
                                         .desired_width(100.0),
                                 );
                             });
+                            ui.horizontal(|ui| {
+                                ui.label("Min muon size:");
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.input_min_muon_size)
+                                        .hint_text("20")
+                                        .desired_width(100.0),
+                                );
+                            });
 
                             ui.add_space(10.0);
 
@@ -678,9 +703,12 @@ impl eframe::App for MatrixApp {
                                 if ui.button("OK").clicked()
                                     && let Ok(depth) = self.input_depth.parse::<i32>()
                                     && let Ok(width) = self.input_width.parse::<f32>()
+                                    && let Ok(min_muon_size) =
+                                        self.input_min_muon_size.parse::<usize>()
                                 {
                                     self.pixel_depth = Some(depth);
                                     self.pixel_width = Some(width);
+                                    self.min_muon_size = Some(min_muon_size.max(4));
                                     self.show_dialog = false;
                                     if let Some(path) = FileDialog::new().pick_folder() {
                                         if let Ok(mat) = list_dir(&path) {
@@ -756,7 +784,7 @@ impl eframe::App for MatrixApp {
                     };
                     ui.label(format!(
                         "Particle: {:?}\nsize: {}\naverage energy: {}\nLET: {}\ntotal energy: {}\nazimuth: {}\nazimuth offset: {}\n abs zenith: {}\n zenith: {}\nwinding: {}\nframe number: {:?}\n timestamp: {}",
-                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
+                        selected_track.particle_type(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix, self.min_muon_size.unwrap_or(DEFAULT_MIN_MUON_SIZE)),
                         selected_track.size(),
                         selected_track.avg_energy(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
                         selected_track.let_avg(&self.matricees[self.current_file].get_tracks()[self.current_matrix].matrix),
