@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 use dotenvy::from_filename;
 use eframe::egui::{self, viewport::IconData};
 use serde::Deserialize;
@@ -21,6 +21,9 @@ const LANG: Langs = Langs::En;
 const CONFIG: &str = include_str!("../config.env");
 const EN: &str = include_str!("../locales/en.json");
 const CS: &str = include_str!("../locales/cs.json");
+const DE: &str = include_str!("../locales/de.json");
+const OCS: &str = include_str!("../locales/ocs.json");
+
 const CONFIG_PATH: &str = "../config.env";
 
 #[derive(Debug, Clone)]
@@ -58,6 +61,14 @@ fn get_env<T: std::str::FromStr>(key: &str, default: T) -> T {
 }
 
 fn main() -> eframe::Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    let easter_egg_on = if args.len() > 1 {
+        args[1] == "ocs"
+    } else {
+        false
+    };
+
     let tracks: Vec<decoder::Particle> = Vec::new();
 
     // graphics
@@ -84,6 +95,7 @@ fn main() -> eframe::Result<()> {
                 &configs,
                 &Texts::load(&configs.lang),
                 &configs.lang,
+                easter_egg_on,
             ))
         }),
     )
@@ -114,11 +126,17 @@ fn load_icon() -> Option<IconData> {
 enum Langs {
     Cs,
     En,
+    Ocs,
+    De,
 }
 
 impl Langs {
-    fn list() -> Vec<Self> {
-        vec![Self::En, Self::Cs]
+    fn list(easter_egg_on: bool) -> Vec<Self> {
+        if easter_egg_on {
+            vec![Self::En, Self::Cs, Self::Ocs, Self::De]
+        } else {
+            vec![Self::En, Self::Cs, Self::De]
+        }
     }
 
     fn change_lang(new_lang: &Langs) -> Texts {
@@ -164,6 +182,7 @@ impl FromStr for Langs {
         match s.to_lowercase().as_str() {
             "cs" => Ok(Langs::Cs),
             "en" => Ok(Langs::En),
+            "ocs" => Ok(Langs::Ocs),
             _ => Err(()),
         }
     }
@@ -174,6 +193,8 @@ impl fmt::Display for Langs {
         match self {
             Langs::Cs => write!(f, "cs"),
             Langs::En => write!(f, "en"),
+            Langs::Ocs => write!(f, "ocs"),
+            Langs::De => write!(f, "de"),
         }
     }
 }
@@ -244,6 +265,8 @@ impl Texts {
         let text = match lang {
             Langs::En => EN.to_string(),
             Langs::Cs => CS.to_string(),
+            Langs::Ocs => OCS.to_string(),
+            Langs::De => DE.to_string(),
         };
         serde_json::from_str(&text).unwrap()
     }

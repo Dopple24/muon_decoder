@@ -6,6 +6,7 @@ use crate::{
 };
 use chrono::Utc;
 use eframe::egui::{self, ColorImage};
+use egui::CursorIcon;
 use rayon::prelude::*;
 use rfd::FileDialog;
 use std::sync::{Arc, Mutex};
@@ -63,6 +64,7 @@ pub struct Muon {
 
 #[derive(Debug)]
 pub struct MatrixApp {
+    easter_egg_on: bool,
     //config from config.env
     config: crate::Config,
 
@@ -109,6 +111,8 @@ pub struct MatrixApp {
     // Sorting state for sus_muon grid
     sus_muon_sort_column: Option<usize>,
     sus_muon_sort_ascending: bool,
+
+    loading: bool,
 }
 
 impl MatrixApp {
@@ -118,8 +122,10 @@ impl MatrixApp {
         config: &crate::Config,
         texts: &crate::Texts,
         lang: &Langs,
+        easter_egg_on: bool,
     ) -> Self {
         let mut app = Self {
+            easter_egg_on,
             config: config.clone(),
             texts: texts.clone(),
             current_lang: lang.clone(),
@@ -160,6 +166,7 @@ impl MatrixApp {
             muon_sort_ascending: true,
             sus_muon_sort_column: None,
             sus_muon_sort_ascending: true,
+            loading: false,
         };
         app.update_image();
         app
@@ -458,6 +465,12 @@ impl eframe::App for MatrixApp {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         use egui::Key;
 
+        if self.loading {
+            ctx.output_mut(|o| o.cursor_icon = CursorIcon::Wait);
+        } else {
+            ctx.output_mut(|o| o.cursor_icon = CursorIcon::Default);
+        }
+
         // ----------------------------
         // Input handling
         // ----------------------------
@@ -535,7 +548,7 @@ impl eframe::App for MatrixApp {
                 egui::ComboBox::from_id_source("lang_selector")
                     .selected_text(self.selected_lang.to_string())
                     .show_ui(ui, |ui| {
-                        Langs::list().iter().for_each(|lang| {
+                        Langs::list(self.easter_egg_on).iter().for_each(|lang| {
                             ui.selectable_value(
                                 &mut self.selected_lang,
                                 lang.clone(),
@@ -749,6 +762,7 @@ impl eframe::App for MatrixApp {
                                     && let Ok(min_muon_size) =
                                         self.input_min_muon_size.parse::<usize>()
                                 {
+                                    self.loading = true;
                                     self.pixel_depth = depth;
                                     self.pixel_width = width;
                                     self.min_muon_size = min_muon_size.max(4);
@@ -784,6 +798,7 @@ impl eframe::App for MatrixApp {
                                             self.error = Some("error".to_string());
                                         }
                                     }
+                                    self.loading = false;
                                 }
 
                                 if ui.button(&self.texts.import_dialog_cancel).clicked() {
