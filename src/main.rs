@@ -139,6 +139,15 @@ impl Langs {
         }
     }
 
+    fn to_readable(&self) -> String {
+        match self {
+            Self::En => "English".to_string(),
+            Self::Cs => "Čeština".to_string(),
+            Self::De => "Deutsch".to_string(),
+            Self::Ocs => "Staročeština".to_string(),
+        }
+    }
+
     fn change_lang(new_lang: &Langs) -> Texts {
         let content = format!(
             "DEFAULT_MIN_MUON_SIZE=20\n\
@@ -224,7 +233,6 @@ struct Texts {
     pub import_dialog_title: String,
     pub import_dialog_dimensions: String,
     pub import_dialog_depth: String,
-    pub import_dialog_width: String,
     pub import_dialog_min_muon_size: String,
     pub import_dialog_compass: String,
     pub import_dialog_confirm: String,

@@ -222,7 +222,7 @@ clusters**.
 
 ### Int Muon
 
-"Intermediate muon"
+"Interesting muon"
 
 -   Long tracks
 -   Not perfectly straight
@@ -291,7 +291,7 @@ side.
 
 ### Total Energy
 
-Sum of all pixel energies belonging to a track.
+Sum of all pixel energies belonging to a track in keV.
 
     total energy = sum(pixel energies)
 
@@ -301,7 +301,7 @@ Number of pixels belonging to a particle track.
 
 ### LET (Linear Energy Transfer)
 
-Energy deposited per unit track length.
+Energy deposited per unit track length in keV/cm.
 
     LET = total energy / particle length
 

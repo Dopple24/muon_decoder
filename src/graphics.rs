@@ -96,7 +96,6 @@ pub struct MatrixApp {
 
     show_dialog: bool,
     input_depth: String,
-    input_width: String,
     input_min_muon_size: String,
     pub pixel_depth: i32,
     pub pixel_width: f32,
@@ -156,7 +155,6 @@ impl MatrixApp {
             show_dialog: false,
             input_min_muon_size: config.default_min_muon_size.to_string(),
             input_depth: config.default_pixel_depth.to_string(),
-            input_width: config.default_pixel_width.to_string(),
             pixel_depth: config.default_pixel_depth as i32,
             pixel_width: config.default_pixel_width,
             selected_mode: Orientation::North,
@@ -546,13 +544,13 @@ impl eframe::App for MatrixApp {
                 });
 
                 egui::ComboBox::from_id_source("lang_selector")
-                    .selected_text(self.selected_lang.to_string())
+                    .selected_text(self.selected_lang.to_readable())
                     .show_ui(ui, |ui| {
                         Langs::list(self.easter_egg_on).iter().for_each(|lang| {
                             ui.selectable_value(
                                 &mut self.selected_lang,
                                 lang.clone(),
-                                lang.to_string(),
+                                lang.to_readable(),
                             );
                         });
                     });
@@ -716,15 +714,6 @@ impl eframe::App for MatrixApp {
                                         .desired_width(100.0),
                                 );
                             });
-
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}:", &self.texts.import_dialog_width));
-                                ui.add(
-                                    egui::TextEdit::singleline(&mut self.input_width)
-                                        .hint_text(self.config.default_pixel_width.to_string())
-                                        .desired_width(100.0),
-                                );
-                            });
                             ui.horizontal(|ui| {
                                 ui.label(format!("{}:", &self.texts.import_dialog_min_muon_size));
                                 ui.add(
@@ -758,13 +747,11 @@ impl eframe::App for MatrixApp {
                             ui.horizontal(|ui| {
                                 if ui.button(&self.texts.import_dialog_confirm).clicked()
                                     && let Ok(depth) = self.input_depth.parse::<i32>()
-                                    && let Ok(width) = self.input_width.parse::<f32>()
                                     && let Ok(min_muon_size) =
                                         self.input_min_muon_size.parse::<usize>()
                                 {
                                     self.loading = true;
                                     self.pixel_depth = depth;
-                                    self.pixel_width = width;
                                     self.min_muon_size = min_muon_size.max(4);
                                     self.show_dialog = false;
                                     if let Some(path) = FileDialog::new().pick_folder() {
