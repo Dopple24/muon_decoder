@@ -1,5 +1,6 @@
 use crate::SIZE;
 use crate::graphics::Orientation;
+use chrono::{DateTime, Utc};
 use geo::algorithm::line_measures::{Euclidean, Length};
 use geo::{Area, ConvexHull};
 use geo_types::{Coord, MultiPoint};
@@ -13,6 +14,7 @@ pub enum PartType {
     Muon,
     SusMuon,
     Unknown,
+    TooShortMuon,
 }
 
 #[derive(Clone, Debug)]
@@ -27,22 +29,21 @@ pub struct Particle {
     part_type_cache: Option<PartType>,
     let_avg_cache: Option<f32>,
     orientation: Orientation,
+    timestamp: DateTime<Utc>,
 }
-
-pub const DEFAULT_PIXEL_DEPTH: i32 = 300;
-pub const DEFAULT_PIXEL_WIDTH: f32 = 54.6875;
 
 impl Particle {
     pub fn new(
         track: Vec<(usize, usize)>,
         frame_index: usize,
-        pixel_depth: Option<i32>,
-        pixel_width: Option<f32>,
+        pixel_depth: i32,
+        pixel_width: f32,
         orientation: Orientation,
+        timestamp: Option<DateTime<Utc>>,
     ) -> Self {
         Particle {
-            pixel_depth: pixel_depth.unwrap_or(DEFAULT_PIXEL_DEPTH),
-            pixel_width: pixel_width.unwrap_or(DEFAULT_PIXEL_WIDTH),
+            pixel_depth,
+            pixel_width,
             track,
             frame_index,
             total_energy_cache: None,
@@ -51,7 +52,12 @@ impl Particle {
             part_type_cache: None,
             let_avg_cache: None,
             orientation,
+            timestamp: timestamp.unwrap_or_default(),
         }
+    }
+
+    pub fn get_timestamp(&self) -> DateTime<Utc> {
+        self.timestamp
     }
 
     pub fn get_frame_index(&self) -> usize {
@@ -119,7 +125,8 @@ impl Particle {
             return self.total_energy(grid);
         }
 
-        let let_avg = self.total_energy(grid) / (diagonal * self.pixel_width / 10000.0); //should be keV / cm (4000 - 5000)
+        println!("{}", diagonal);
+        let let_avg = 10000.0 * self.total_energy(grid) / (diagonal * self.pixel_width); //should be keV / cm, self.total_energy() is in keV, pixel_width is in meters*e-6, diagonal is unitless.
 
         self.let_avg_cache = Some(let_avg);
 
@@ -127,7 +134,9 @@ impl Particle {
     }
 
     fn secondary_angle(&mut self) -> f32 {
-        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width)).asin() * 180.0 / PI as f32
+        (self.pixel_depth as f32 / (self.diag_len() * self.pixel_width))
+            .asin()
+            .to_degrees()
     }
 
     pub fn roundness(&mut self) -> f32 {
@@ -145,33 +154,36 @@ impl Particle {
             return val;
         }
 
-        let val = winding_of_path(&self.track).abs(); // CALL YOUR HELPER HERE
+        let val = winding_of_path(&self.track).abs();
         self.winding_cache = Some(val);
         val
     }
 
     fn angle(&self) -> f32 {
         // 0 is horizontal, 90 is pointing up
-        (slope(&linear_regretion(&self.track), &self.track)
-            .min(-573.0)
-            .max(573.0)
+        #[allow(clippy::all)]
+        let ang = slope(&linear_regretion(&self.track), &self.track)
+            // Prevent near-vertical slopes from blowing up before atan (~±89.9°)
+            .max(-573.0)
+            .min(573.0)
             .atan()
-            * 180.0
-            / PI as f32
-            + 180.0)
-            % 180.0
+            .to_degrees()
+            + 90.0;
+        if ang > 90.0 { 180.0 - ang } else { -ang }
     }
 
     pub fn abs_angle_primary(&self) -> f32 {
         // 0 is pointing up
-        90.0 - f32::abs(
-            slope(&linear_regretion(&self.track), &self.track)
-                .min(-573.0)
-                .max(573.0)
-                .atan()
-                * 180.0
-                / PI as f32,
-        )
+        #[allow(clippy::all)]
+        let abs_ang = 90.0
+            - f32::abs(
+                slope(&linear_regretion(&self.track), &self.track)
+                    .max(-573.0)
+                    .min(573.0)
+                    .atan()
+                    .to_degrees(),
+            );
+        abs_ang
     }
 
     pub fn azimuth(&self) -> f32 {
@@ -186,39 +198,31 @@ impl Particle {
         self.secondary_angle()
     }
 
-    pub fn particle_type(&mut self, grid: &[f32]) -> PartType {
+    pub fn particle_type(
+        &mut self,
+        grid: &[f32],
+        min_muon_size: &usize,
+        default_min_muon_size: &usize,
+    ) -> PartType {
         if let Some(pt) = self.part_type_cache {
             return pt;
         }
 
-        let pt = match self.size() {
+        let size = self.size();
+        let pt = match size {
             0..4 => return PartType::Gamma,
-            4..20 => {
+            4..30 => {
                 #[allow(clippy::if_same_then_else)]
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
-                    #[allow(clippy::if_same_then_else)]
-                    if self.winding() < 1.0 {
-                        PartType::Beta
-                    } else {
-                        PartType::Beta
-                    }
-                } else if self.max_energy(grid) > 100.0 {
-                    if self.roundness() > 0.4 {
-                        PartType::Unknown //small blob
-                    } else {
-                        PartType::Unknown
-                    }
-                } else {
-                    PartType::Unknown
-                }
-            }
-            20..30 => {
-                #[allow(clippy::if_same_then_else)]
-                if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
-                    #[allow(clippy::if_same_then_else)]
                     if self.winding() < 0.25 {
                         //consider 0.2
-                        PartType::Muon
+                        if &size > min_muon_size {
+                            PartType::Muon
+                        } else if &size > default_min_muon_size {
+                            PartType::TooShortMuon
+                        } else {
+                            PartType::Beta
+                        }
                     } else {
                         PartType::Beta
                     }
@@ -239,15 +243,16 @@ impl Particle {
                     Second part of the check was added for the purposes of detecting muons which have made an electron excited
                     It assumes, that if winding is relatively small (4.0), only a muon would be able to hold a straight track for 100 or more pixels
                     */
-                    //consider removing the second check
                     if self.winding() > 0.4 {
                         if !(self.size() > 100 && self.winding() < 4.0) {
                             PartType::Beta
                         } else {
                             PartType::SusMuon
                         }
-                    } else {
+                    } else if &size > min_muon_size {
                         PartType::Muon
+                    } else {
+                        PartType::TooShortMuon
                     }
                 } else if self.max_energy(grid) < 200.0 {
                     PartType::Unknown

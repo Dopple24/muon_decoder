@@ -1,24 +1,52 @@
 use crate::SIZE;
+use chrono::{DateTime, Utc};
 use std::fs::File;
-use std::io::{self, BufRead, Error};
+use std::io::{self, BufRead, BufReader, Error};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default)]
 pub struct Tracks {
-    tracks_cache: Option<Vec<Vec<f32>>>,
+    tracks_cache: Option<Vec<Frame>>,
     file_content: Vec<String>,
     pub file_path: PathBuf,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct Frame {
+    pub matrix: Vec<f32>,
+    pub timestamp: chrono::DateTime<Utc>,
+}
+impl Frame {
+    pub fn new(matrix: Vec<f32>, timestamp: chrono::DateTime<Utc>) -> Self {
+        Frame { matrix, timestamp }
+    }
+}
+
 impl Tracks {
-    pub fn get_tracks(&mut self) -> &mut Vec<Vec<f32>> {
+    pub fn get_tracks(&mut self) -> &mut Vec<Frame> {
         // this is necessary, doing what clippy suggests causes lifetime problems
         #[allow(clippy::unnecessary_unwrap)]
         if self.tracks_cache.is_some() {
             return self.tracks_cache.as_mut().unwrap();
         }
-        let tracks = read_lines(&self.file_content).unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1]);
-        self.tracks_cache = Some(tracks);
+
+        let timestamps = get_timestamps(&self.file_path);
+
+        let frames = read_lines(&self.file_content)
+            .unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1])
+            .into_iter()
+            .enumerate()
+            .map(|(time, matrix)| {
+                Frame::new(matrix, {
+                    if time >= timestamps.len() {
+                        chrono::DateTime::default()
+                    } else {
+                        timestamps[time]
+                    }
+                })
+            })
+            .collect();
+        self.tracks_cache = Some(frames);
         self.tracks_cache.as_mut().unwrap()
     }
 
@@ -119,7 +147,7 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
         let reader = std::io::BufReader::new(&file);
         let lines = reader.lines();
         let lines: Vec<String> = lines.map(|l| l.unwrap()).collect();
-        if let Ok(_matrix) = read_lines(&lines) {
+        if read_lines(&lines).is_ok() {
             let track = Tracks {
                 tracks_cache: None,
                 file_content: lines,
@@ -174,4 +202,32 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
     }
 
     Ok(files)
+}
+
+fn get_timestamps(path: &Path) -> Vec<chrono::DateTime<Utc>> {
+    let dsc = match File::open(path.with_added_extension("dsc")) {
+        Ok(val) => val,
+        Err(_) => {
+            return Vec::new();
+        }
+    };
+    let mut timestamps: Vec<DateTime<Utc>> = Vec::new();
+    let mut dsc_lines = BufReader::new(dsc).lines();
+    while let Some(line) = dsc_lines.next() {
+        if line.unwrap() == "\"Start time (string)\" (\"Acquisition start time (string)\"):" {
+            dsc_lines.next();
+            timestamps.push(DateTime::from_naive_utc_and_offset(
+                chrono::NaiveDateTime::parse_from_str(
+                    &dsc_lines
+                        .next()
+                        .unwrap_or(Ok(chrono::NaiveDateTime::default().to_string()))
+                        .unwrap_or(chrono::NaiveDateTime::default().to_string()),
+                    "%a %b %d %H:%M:%S%.f %Y",
+                )
+                .unwrap_or_default(),
+                Utc,
+            ));
+        }
+    }
+    timestamps
 }
