@@ -21,7 +21,7 @@
   "import": "📂 Otewrzieti súbor",
   "import_dialog_title": "Wlož hlúbku",
   "import_dialog_dimensions": "Rozměry",
-  "import_dialog_width": "Šíře",
+  "import_dialog_depth": "Hlúbka",
   "import_dialog_min_muon_size": "Najmenšie welykost miona",
   "import_dialog_compass": "Wol stranu",
   "import_dialog_confirm": "Potwrditi",
