@@ -8,13 +8,14 @@ use std::f64::consts::PI;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PartType {
-    Alpha,
-    Beta,
-    Gamma,
-    Muon,
-    SusMuon,
+    Dot,
+    StraightTrack,
+    CurlyTrack,
+    HeavyBlob,
+    HeavyTrack,
     Unknown,
     TooShortMuon,
+    IntStraightTrack,
 }
 
 #[derive(Clone, Debug)]
@@ -210,27 +211,26 @@ impl Particle {
 
         let size = self.size();
         let pt = match size {
-            0..4 => return PartType::Gamma,
-            4..30 => {
-                #[allow(clippy::if_same_then_else)]
+            0..3 => return PartType::Dot,
+            3..30 => {
                 if self.max_energy(grid) < 150.0 && self.avg_energy(grid) < 40.0 {
                     if self.winding() < 0.25 {
                         //consider 0.2
                         if &size > min_muon_size {
-                            PartType::Muon
+                            PartType::StraightTrack
                         } else if &size > default_min_muon_size {
                             PartType::TooShortMuon
                         } else {
-                            PartType::Beta
+                            PartType::CurlyTrack
                         }
                     } else {
-                        PartType::Beta
+                        PartType::CurlyTrack
                     }
                 } else if self.max_energy(grid) > 100.0 {
                     if self.roundness() > 0.4 {
-                        PartType::Unknown //small blob
+                        PartType::HeavyBlob
                     } else {
-                        PartType::Unknown
+                        PartType::HeavyTrack
                     }
                 } else {
                     PartType::Unknown
@@ -245,21 +245,21 @@ impl Particle {
                     */
                     if self.winding() > 0.4 {
                         if !(self.size() > 100 && self.winding() < 4.0) {
-                            PartType::Beta
+                            PartType::CurlyTrack
                         } else {
-                            PartType::SusMuon
+                            PartType::IntStraightTrack
                         }
                     } else if &size > min_muon_size {
-                        PartType::Muon
+                        PartType::StraightTrack
                     } else {
                         PartType::TooShortMuon
                     }
                 } else if self.max_energy(grid) < 200.0 {
                     PartType::Unknown
                 } else if self.roundness() > 0.4 {
-                    PartType::Alpha
+                    PartType::HeavyBlob
                 } else {
-                    PartType::Unknown
+                    PartType::HeavyTrack
                 }
             }
         };

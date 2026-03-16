@@ -1,4 +1,4 @@
-//#![windows_subsystem = "windows"]
+#![windows_subsystem = "windows"]
 use dotenvy::from_filename;
 use eframe::egui::{self, viewport::IconData};
 use serde::Deserialize;
@@ -23,6 +23,7 @@ const EN: &str = include_str!("../locales/en.json");
 const CS: &str = include_str!("../locales/cs.json");
 const DE: &str = include_str!("../locales/de.json");
 const OCS: &str = include_str!("../locales/ocs.json");
+const UWU: &str = include_str!("../locales/uw.json");
 
 const CONFIG_PATH: &str = "../config.env";
 
@@ -127,13 +128,14 @@ enum Langs {
     Cs,
     En,
     Ocs,
+    Uwu,
     De,
 }
 
 impl Langs {
     fn list(easter_egg_on: bool) -> Vec<Self> {
         if easter_egg_on {
-            vec![Self::En, Self::Cs, Self::Ocs, Self::De]
+            vec![Self::En, Self::Cs, Self::Ocs, Self::De, Self::Uwu]
         } else {
             vec![Self::En, Self::Cs, Self::De]
         }
@@ -145,6 +147,7 @@ impl Langs {
             Self::Cs => "Čeština".to_string(),
             Self::De => "Deutsch".to_string(),
             Self::Ocs => "Staročeština".to_string(),
+            Self::Uwu => "UwU".to_string(),
         }
     }
 
@@ -204,6 +207,7 @@ impl fmt::Display for Langs {
             Langs::En => write!(f, "en"),
             Langs::Ocs => write!(f, "ocs"),
             Langs::De => write!(f, "de"),
+            Langs::Uwu => write!(f, "uwu"),
         }
     }
 }
@@ -219,11 +223,12 @@ struct Texts {
     pub cubic_view: String,
     pub mode: String,
     pub particles: String,
-    pub alpha: String,
-    pub beta: String,
-    pub gamma: String,
-    pub muon: String,
-    pub sus_muon: String,
+    pub heavy_blob: String,
+    pub curly_track: String,
+    pub dot: String,
+    pub straight_track: String,
+    pub int_straight_track: String,
+    pub heavy_track: String,
     pub unknown: String,
     pub too_short_muon: String,
     pub muon_section_header: String,
@@ -275,6 +280,7 @@ impl Texts {
             Langs::Cs => CS.to_string(),
             Langs::Ocs => OCS.to_string(),
             Langs::De => DE.to_string(),
+            Langs::Uwu => UWU.to_string(),
         };
         serde_json::from_str(&text).unwrap()
     }
