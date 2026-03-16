@@ -6,6 +6,8 @@ use std::env;
 use std::path::Path;
 use std::{fmt, fs, str::FromStr};
 
+use image::load_from_memory;
+
 mod decoder;
 mod file_reader;
 mod graphics;
@@ -103,15 +105,10 @@ fn main() -> eframe::Result<()> {
 }
 
 fn load_icon() -> Option<IconData> {
-    // generate blank icon on the fly if one is not found
-    let image = match std::fs::read(Path::new(r"assets/image.png")) {
-        Ok(icon) => image::load_from_memory(&icon).expect("Failed to convert icon on disk"),
-        _ => {
-            eprintln!("Icon file not found, using placeholder");
-            image::DynamicImage::new_rgba8(1, 1)
-        }
-    }
-    .into_rgba8();
+    let image_bytes = include_bytes!("../assets/image.png");
+
+    let image = load_from_memory(image_bytes).ok()?;
+    let image = image.into_rgba8();
 
     let (width, height) = image.dimensions();
     let rgba = image.into_raw();
