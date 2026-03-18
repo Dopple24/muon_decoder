@@ -364,7 +364,9 @@ mod tests {
         for l in Langs::list(true) {
             // load_strict panics on fail, letting you know if a translation is missing
             // regular load falls back on the english version (or prints a warning) to avoid runtime panics
-            Texts::load_strict(&l).unwrap();
+            Texts::load_strict(&l).inspect_err(|e| {
+                panic!("Failed to load locale {}:\n  Missing values: {:?}", l, e);
+            }).unwrap();
         }
     }
 }
