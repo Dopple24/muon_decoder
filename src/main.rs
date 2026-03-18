@@ -1,7 +1,6 @@
 #![windows_subsystem = "windows"]
 use dotenvy::from_filename;
 use eframe::egui::{self, viewport::IconData};
-use serde::Deserialize;
 use std::env;
 use std::path::Path;
 use std::{fmt, fs, str::FromStr};
@@ -121,7 +120,7 @@ fn load_icon() -> Option<IconData> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Langs {
+pub enum Langs {
     Cs,
     En,
     Ocs,
@@ -209,79 +208,150 @@ impl fmt::Display for Langs {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct Texts {
-    pub title: String,
-    pub arrow_left: String,
-    pub arrow_right: String,
-    pub single_mode: String,
-    pub combined_mode: String,
-    pub compound_mode: String,
-    pub cubic_view: String,
-    pub mode: String,
-    pub particles: String,
-    pub heavy_blob: String,
-    pub curly_track: String,
-    pub dot: String,
-    pub straight_track: String,
-    pub int_straight_track: String,
-    pub heavy_track: String,
-    pub unknown: String,
-    pub too_short_muon: String,
-    pub muon_section_header: String,
-    pub sus_muon_section_header: String,
-    pub export: String,
-    pub export_all: String,
-    pub import: String,
-    pub import_dialog_title: String,
-    pub import_dialog_dimensions: String,
-    pub import_dialog_depth: String,
-    pub import_dialog_min_muon_size: String,
-    pub import_dialog_compass: String,
-    pub import_dialog_confirm: String,
-    pub import_dialog_cancel: String,
-    pub north: String,
-    pub south: String,
-    pub east: String,
-    pub west: String,
-    pub tracks: String,
-    pub file_location: String,
-    pub particle_type_label: String,
-    pub size_label: String,
-    pub avg_energy_label: String,
-    pub let_avg_label: String,
-    pub total_energy_label: String,
-    pub azimuth_label: String,
-    pub azimuth_offset_label: String,
-    pub abs_angle_primary_label: String,
-    pub zenith_label: String,
-    pub winding_label: String,
-    pub get_frame_index_label: String,
-    pub get_timestamp_label: String,
-    pub muon_list_zenith: String,
-    pub muon_list_abs_angle_primary: String,
-    pub muon_list_azimuth: String,
-    pub muon_list_total_energy: String,
-    pub muon_list_size: String,
-    pub muon_list_let_avg: String,
-    pub muon_list_timestamp: String,
-    pub muon_list_frame_index: String,
-    pub muon_list_file: String,
-    pub muon_list_azimuth_offset: String,
-    pub save_csv: String,
+macro_rules! define_locale {
+    ($( $field:ident ),* $(,)?) => {
+        #[derive(Debug, Clone)]
+        pub struct Texts {
+            $( pub $field: String, )*
+        }
+
+        impl Texts {
+            pub fn load(lang: &Langs) -> Self {
+                let english: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(EN).expect("English locale is invalid JSON");
+
+                let (raw, is_english) = match lang {
+                    Langs::En  => (EN,  true),
+                    Langs::Cs  => (CS,  false),
+                    Langs::Ocs => (OCS, false),
+                    Langs::De  => (DE,  false),
+                    Langs::Uwu => (UWU, false),
+                };
+
+                let map: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(raw).expect("Locale is invalid JSON");
+
+                let fallback = if is_english { None } else { Some(&english) };
+                let mut missing: Vec<&'static str> = Vec::new();
+
+                let result = Self::from_map(&map, fallback, &mut missing);
+
+                if !missing.is_empty() {
+                    eprintln!("[i18n] {:?} is missing keys (fell back to English or sentinel): {:?}", lang, missing);
+                }
+
+                result
+            }
+
+            /// Used by load() at runtime (warns) and by tests (can panic).
+            pub fn load_strict(lang: &Langs) -> Result<Self, Vec<&'static str>> {
+                let english: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(EN).expect("English locale is invalid JSON");
+
+                let raw = match lang {
+                    Langs::En  => EN,
+                    Langs::Cs  => CS,
+                    Langs::Ocs => OCS,
+                    Langs::De  => DE,
+                    Langs::Uwu => UWU,
+                };
+
+                let map: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(raw).expect("Locale is invalid JSON");
+
+                let is_english = matches!(lang, Langs::En);
+                let fallback = if is_english { None } else { Some(&english) };
+                let mut missing: Vec<&'static str> = Vec::new();
+
+                let result = Self::from_map(&map, fallback, &mut missing);
+
+                if missing.is_empty() { Ok(result) } else { Err(missing) }
+            }
+
+            fn from_map(
+                map: &serde_json::Map<String, serde_json::Value>,
+                fallback: Option<&serde_json::Map<String, serde_json::Value>>,
+                missing: &mut Vec<&'static str>,
+            ) -> Self {
+                let mut get = |key: &'static str| -> String {
+                    if let Some(v) = map.get(key).and_then(|v| v.as_str()) {
+                        return v.to_string();
+                    }
+                    missing.push(key);
+                    fallback
+                        .and_then(|fb| fb.get(key))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| format!("⚠ MISSING:{key}"))
+                };
+
+                Self {
+                    $( $field: get(stringify!($field)), )*
+                }
+            }
+        }
+    };
 }
 
-impl Texts {
-    fn load(lang: &Langs) -> Self {
-        let text = match lang {
-            Langs::En => EN.to_string(),
-            Langs::Cs => CS.to_string(),
-            Langs::Ocs => OCS.to_string(),
-            Langs::De => DE.to_string(),
-            Langs::Uwu => UWU.to_string(),
-        };
-        serde_json::from_str(&text).unwrap()
-    }
+define_locale!{
+    title,
+    arrow_left,
+    arrow_right,
+    single_mode,
+    combined_mode,
+    compound_mode,
+    cubic_view,
+    mode,
+    particles,
+    heavy_blob,
+    curly_track,
+    dot,
+    straight_track,
+    int_straight_track,
+    heavy_track,
+    unknown,
+    too_short_muon,
+    muon_section_header,
+    sus_muon_section_header,
+    export,
+    export_all,
+    import,
+    import_dialog_title,
+    import_dialog_dimensions,
+    import_dialog_depth,
+    import_dialog_min_muon_size,
+    import_dialog_compass,
+    import_dialog_confirm,
+    import_dialog_cancel,
+    north,
+    south,
+    east,
+    west,
+    tracks,
+    file_location,
+    particle_type_label,
+    size_label,
+    avg_energy_label,
+    let_avg_label,
+    total_energy_label,
+    azimuth_label,
+    azimuth_offset_label,
+    abs_angle_primary_label,
+    zenith_label,
+    winding_label,
+    get_frame_index_label,
+    get_timestamp_label,
+    muon_list_zenith,
+    muon_list_abs_angle_primary,
+    muon_list_azimuth,
+    muon_list_total_energy,
+    muon_list_size,
+    muon_list_let_avg,
+    muon_list_timestamp,
+    muon_list_frame_index,
+    muon_list_file,
+    muon_list_azimuth_offset,
+    save_csv,
 }
 
 #[cfg(test)]
@@ -289,11 +359,12 @@ mod tests {
     use super::*;
 
     // attempt to load all locales
-    // panics on fail, letting you know if a translation is missing
     #[test]
     fn test_locales() {
         for l in Langs::list(true) {
-            let _ = Texts::load(&l);
+            // load_strict panics on fail, letting you know if a translation is missing
+            // regular load falls back on the english version (or prints a warning) to avoid runtime panics
+            Texts::load_strict(&l).unwrap();
         }
     }
 }
