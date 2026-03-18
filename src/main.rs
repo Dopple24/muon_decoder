@@ -231,6 +231,7 @@ struct Texts {
     pub muon_section_header: String,
     pub sus_muon_section_header: String,
     pub export: String,
+    pub export_all: String,
     pub import: String,
     pub import_dialog_title: String,
     pub import_dialog_dimensions: String,
@@ -280,5 +281,19 @@ impl Texts {
             Langs::Uwu => UWU.to_string(),
         };
         serde_json::from_str(&text).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // attempt to load all locales
+    // panics on fail, letting you know if a translation is missing
+    #[test]
+    fn test_locales() {
+        for l in Langs::list(true) {
+            let _ = Texts::load(&l);
+        }
     }
 }

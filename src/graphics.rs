@@ -653,6 +653,20 @@ impl eframe::App for MatrixApp {
             .resizable(true)
             .min_width(150.0)
             .show(ctx, |ui| {
+                if ui.button(&self.texts.export_all).clicked() {
+                    let mut all_files_muons = Vec::new();
+                    for i in 0..self.matricees.len() {
+                        self.current_file = i;
+                        self.init_compound_mode();
+                        all_files_muons.extend(std::mem::take(&mut self.muons));
+                        all_files_muons.extend(std::mem::take(&mut self.sus_muons));
+                    }
+
+                    let csv = build_csv(&all_files_muons, &self.texts);
+                    if let Err(e) = export_csv(&csv, &self.texts) {
+                        self.error = Some(e);
+                    }
+                }
                 egui::ScrollArea::horizontal()
                     .id_source("muons_scroll")
                     .show(ui, |ui| {
