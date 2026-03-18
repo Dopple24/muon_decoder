@@ -86,11 +86,12 @@ pub struct MatrixApp {
     current_mode: Mode,
     error: Option<String>,
 
-    show_alpha: bool,
-    show_beta: bool,
-    show_gamma: bool,
-    show_muon: bool,
-    show_sus_muon: bool,
+    show_straight_track: bool,
+    show_curly_track: bool,
+    show_dot: bool,
+    show_heavy_blob: bool,
+    show_heavy_track: bool,
+    show_int_straight_track: bool,
     show_unknown: bool,
     show_too_short_muon: bool,
 
@@ -145,13 +146,14 @@ impl MatrixApp {
             needs_update: true,
             current_mode: Mode::Combined,
             error: None,
-            show_alpha: true,
-            show_beta: true,
-            show_gamma: true,
-            show_muon: true,
-            show_sus_muon: true,
+            show_heavy_blob: true,
+            show_curly_track: true,
+            show_dot: true,
+            show_straight_track: true,
+            show_heavy_track: true,
             show_unknown: true,
             show_too_short_muon: true,
+            show_int_straight_track: true,
             show_dialog: false,
             input_min_muon_size: config.default_min_muon_size.to_string(),
             input_depth: config.default_pixel_depth.to_string(),
@@ -235,11 +237,12 @@ impl MatrixApp {
 
     fn update_counter(&mut self) {
         let filters = [
-            (self.show_alpha, PartType::Alpha),
-            (self.show_beta, PartType::Beta),
-            (self.show_gamma, PartType::Gamma),
-            (self.show_muon, PartType::Muon),
-            (self.show_sus_muon, PartType::SusMuon),
+            (self.show_heavy_blob, PartType::HeavyBlob),
+            (self.show_curly_track, PartType::CurlyTrack),
+            (self.show_dot, PartType::Dot),
+            (self.show_straight_track, PartType::StraightTrack),
+            (self.show_int_straight_track, PartType::IntStraightTrack),
+            (self.show_heavy_track, PartType::HeavyTrack),
             (self.show_unknown, PartType::Unknown),
             (self.show_too_short_muon, PartType::TooShortMuon),
         ];
@@ -391,7 +394,7 @@ impl MatrixApp {
                         &self.min_muon_size,
                         &self.config.default_min_muon_size,
                     );
-                    if part_type == PartType::Muon {
+                    if part_type == PartType::StraightTrack {
                         muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
                             timestamp: p.timestamp,
@@ -404,7 +407,7 @@ impl MatrixApp {
                             size: particle.size(),
                             let_avg: particle.let_avg(&p.matrix),
                         })
-                    } else if part_type == PartType::SusMuon {
+                    } else if part_type == PartType::IntStraightTrack {
                         sus_muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
                             timestamp: p.timestamp,
@@ -572,11 +575,12 @@ impl eframe::App for MatrixApp {
 
                 let mut count = HashMap::new();
                 for p in [
-                    PartType::Alpha,
-                    PartType::Beta,
-                    PartType::Gamma,
-                    PartType::Muon,
-                    PartType::SusMuon,
+                    PartType::HeavyBlob,
+                    PartType::CurlyTrack,
+                    PartType::Dot,
+                    PartType::StraightTrack,
+                    PartType::IntStraightTrack,
+                    PartType::HeavyTrack,
                     PartType::Unknown,
                     PartType::TooShortMuon,
                 ] {
@@ -602,11 +606,12 @@ impl eframe::App for MatrixApp {
                     .spacing([10.0, 6.0])
                     .show(ui, |ui| {
                         for (label, ty) in [
-                            (&self.texts.alpha, PartType::Alpha),
-                            (&self.texts.beta, PartType::Beta),
-                            (&self.texts.gamma, PartType::Gamma),
-                            (&self.texts.muon, PartType::Muon),
-                            (&self.texts.sus_muon, PartType::SusMuon),
+                            (&self.texts.heavy_blob, PartType::HeavyBlob),
+                            (&self.texts.curly_track, PartType::CurlyTrack),
+                            (&self.texts.dot, PartType::Dot),
+                            (&self.texts.straight_track, PartType::StraightTrack),
+                            (&self.texts.int_straight_track, PartType::IntStraightTrack),
+                            (&self.texts.heavy_track, PartType::HeavyTrack),
                             (&self.texts.unknown, PartType::Unknown),
                             (&self.texts.too_short_muon, PartType::TooShortMuon),
                         ] {
@@ -616,11 +621,12 @@ impl eframe::App for MatrixApp {
                         }
                     });
 
-                let response_al = ui.checkbox(&mut self.show_alpha, &self.texts.alpha);
-                let response_be = ui.checkbox(&mut self.show_beta, &self.texts.beta);
-                let response_ga = ui.checkbox(&mut self.show_gamma, &self.texts.gamma);
-                let response_mu = ui.checkbox(&mut self.show_muon, &self.texts.muon);
-                let response_sm = ui.checkbox(&mut self.show_sus_muon, &self.texts.sus_muon);
+                let response_al = ui.checkbox(&mut self.show_heavy_blob, &self.texts.heavy_blob);
+                let response_be = ui.checkbox(&mut self.show_curly_track, &self.texts.curly_track);
+                let response_ga = ui.checkbox(&mut self.show_dot, &self.texts.dot);
+                let response_mu = ui.checkbox(&mut self.show_straight_track, &self.texts.straight_track);
+                let response_is = ui.checkbox(&mut self.show_int_straight_track, &self.texts.int_straight_track);
+                let response_sm = ui.checkbox(&mut self.show_heavy_track, &self.texts.heavy_track);
                 let response_un = ui.checkbox(&mut self.show_unknown, &self.texts.unknown);
                 let response_sh =
                     ui.checkbox(&mut self.show_too_short_muon, &self.texts.too_short_muon);
@@ -632,6 +638,7 @@ impl eframe::App for MatrixApp {
                     || response_sm.changed()
                     || response_sh.changed()
                     || response_un.changed()
+                    || response_is.changed()
                 {
                     self.update_image();
                     // this is redundant, update_image() already calls update_counter itself()
