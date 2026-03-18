@@ -126,7 +126,6 @@ impl Particle {
             return self.total_energy(grid);
         }
 
-        println!("{}", diagonal);
         let let_avg = 10000.0 * self.total_energy(grid) / (diagonal * self.pixel_width); //should be keV / cm, self.total_energy() is in keV, pixel_width is in meters*e-6, diagonal is unitless.
 
         self.let_avg_cache = Some(let_avg);
