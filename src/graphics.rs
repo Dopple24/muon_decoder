@@ -624,8 +624,12 @@ impl eframe::App for MatrixApp {
                 let response_al = ui.checkbox(&mut self.show_heavy_blob, &self.texts.heavy_blob);
                 let response_be = ui.checkbox(&mut self.show_curly_track, &self.texts.curly_track);
                 let response_ga = ui.checkbox(&mut self.show_dot, &self.texts.dot);
-                let response_mu = ui.checkbox(&mut self.show_straight_track, &self.texts.straight_track);
-                let response_is = ui.checkbox(&mut self.show_int_straight_track, &self.texts.int_straight_track);
+                let response_mu =
+                    ui.checkbox(&mut self.show_straight_track, &self.texts.straight_track);
+                let response_is = ui.checkbox(
+                    &mut self.show_int_straight_track,
+                    &self.texts.int_straight_track,
+                );
                 let response_sm = ui.checkbox(&mut self.show_heavy_track, &self.texts.heavy_track);
                 let response_un = ui.checkbox(&mut self.show_unknown, &self.texts.unknown);
                 let response_sh =

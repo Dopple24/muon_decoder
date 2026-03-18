@@ -293,7 +293,7 @@ macro_rules! define_locale {
     };
 }
 
-define_locale!{
+define_locale! {
     title,
     arrow_left,
     arrow_right,
