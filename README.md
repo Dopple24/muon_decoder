@@ -53,18 +53,28 @@ Supported particle classes:
 
 # Installation
 
-Download the latest release:
+## Download the latest release:
 
 https://github.com/Dopple24/muon_decoder/releases/latest
 
-Or build from source.
+## Or use the installer for windows:
+```powershell
+irm https://raw.githubusercontent.com/Dopple24/muon_decoder/master/install.ps1 | iex
+```
 
-## Requirements
+## Or download from the AUR (Arch Linux):
+```bash
+paru -S particle_decoder
+```
+
+## Or build from source.
+
+### Requirements
 
 -   Rust toolchain\
     https://rust-lang.org
 
-## Build
+### Build
 
 ``` bash
 git clone https://github.com/Dopple24/muon_decoder
