@@ -52,18 +52,10 @@
   "muon_list_total_energy": "vsa_energia",
   "muon_list_size": "velkost",
   "muon_list_let_avg": "LET",
-<<<<<<< HEAD
-  "muon_list_timestamp": "časóva štempl",
-  "muon_list_datetime": "čas",
-  "muon_list_avg": "próměrná energie",
-  "muon_list_frame_index": "rámec#",
-  "muon_list_file": "súbor",
-  "save_csv": "Uložiti CSV"
-}
-=======
+  "muon_list_datetime": "cas",
+  "muon_list_avg": "sredna energia",
   "muon_list_timestamp": "vreme",
   "muon_list_frame_index": "ramec#",
   "muon_list_file": "sobor",
   "save_csv": "Sohraniti CSV"
 }
->>>>>>> cdb04428e17412201daea3a6ab3eeeebd87370bb

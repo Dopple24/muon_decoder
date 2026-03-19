@@ -55,5 +55,7 @@
   "muon_list_timestamp": "timestamp",
   "muon_list_frame_index": "fwame#",
   "muon_list_file": "fiwle",
+  "muon_list_avg": "avewage enewgy",
+  "muon_list_datetime": "datetime",
   "save_csv": "Save CSV"
 }
