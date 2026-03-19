@@ -950,7 +950,7 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
 fn add_muons_to_csv(muons: &[Muon], csv: &mut String) {
     for muon in muons {
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{}\n",
             muon.zenith,
             muon.abs_angle_primary,
             muon.azimuth,
