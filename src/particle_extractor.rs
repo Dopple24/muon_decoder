@@ -9,11 +9,9 @@ pub fn extract(
 ) -> HashMap<usize, Vec<(usize, usize)>> {
     let mut next_id: usize = 1;
     let mut parent: HashMap<usize, usize> = HashMap::new();
-    let size_x = size;
-    let size_y = size;
 
-    for y in 0..size_x {
-        for x in 0..size_y {
+    for y in 0..size {
+        for x in 0..size {
             if grid[x * size + y] == 0.0 {
                 continue;
             }

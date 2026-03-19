@@ -658,16 +658,16 @@ impl eframe::App for MatrixApp {
             .min_width(150.0)
             .show(ctx, |ui| {
                 if ui.button(&self.texts.export_all).clicked() {
-                    let mut all_files_muons = Vec::new();
+                    let mut big_csv = build_csv(&[], &self.texts);
                     for i in 0..self.matricees.len() {
                         self.current_file = i;
                         self.init_compound_mode();
-                        all_files_muons.extend(std::mem::take(&mut self.muons));
-                        all_files_muons.extend(std::mem::take(&mut self.sus_muons));
+                        add_muons_to_csv(&self.muons, &mut big_csv);
+                        add_muons_to_csv(&self.sus_muons, &mut big_csv);
+                        self.matricees[i].clear_cache();
                     }
 
-                    let csv = build_csv(&all_files_muons, &self.texts);
-                    if let Err(e) = export_csv(&csv, &self.texts) {
+                    if let Err(e) = export_csv(&big_csv, &self.texts) {
                         self.error = Some(e);
                     }
                 }
@@ -935,8 +935,13 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
         &texts.muon_list_file,
     ));
 
+    add_muons_to_csv(muons, &mut content);
+
+    content
+}
+fn add_muons_to_csv(muons: &[Muon], csv: &mut String) {
     for muon in muons {
-        content.push_str(&format!(
+        csv.push_str(&format!(
             "{},{},{},{},{},{},{},{},{},{}\n",
             muon.zenith,
             muon.abs_angle_primary,
@@ -950,8 +955,6 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
             muon.file.to_string_lossy()
         ));
     }
-
-    content
 }
 fn export_csv(content: &str, texts: &crate::Texts) -> Result<(), String> {
     if let Some(path) = FileDialog::new()
