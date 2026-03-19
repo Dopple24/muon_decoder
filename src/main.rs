@@ -15,7 +15,7 @@ mod particle_extractor;
 mod renderer;
 
 const DEFAULT_MIN_MUON_SIZE: usize = 20;
-const DEFAULT_PIXEL_DEPTH: usize = 30;
+const DEFAULT_PIXEL_DEPTH: usize = 300;
 const DEFAULT_PIXEL_WIDTH: f32 = 54.6875;
 const SIZE: usize = 256;
 const LANG: Langs = Langs::En;
@@ -258,7 +258,9 @@ struct Texts {
     pub muon_list_total_energy: String,
     pub muon_list_size: String,
     pub muon_list_let_avg: String,
+    pub muon_list_avg: String,
     pub muon_list_timestamp: String,
+    pub muon_list_datetime: String,
     pub muon_list_frame_index: String,
     pub muon_list_file: String,
     pub muon_list_azimuth_offset: String,

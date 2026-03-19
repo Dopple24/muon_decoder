@@ -51,7 +51,9 @@
   "muon_list_total_energy": "celk_energie",
   "muon_list_size": "welykost",
   "muon_list_let_avg": "LET",
-  "muon_list_timestamp": "čas",
+  "muon_list_timestamp": "časóva štempl",
+  "muon_list_datetime": "čas",
+  "muon_list_avg": "próměrná energie",
   "muon_list_frame_index": "rámec#",
   "muon_list_file": "súbor",
   "save_csv": "Uložiti CSV"
