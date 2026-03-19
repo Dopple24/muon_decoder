@@ -194,6 +194,10 @@ impl Particle {
         self.angle()
     }
 
+    pub fn unix(&self) -> i64 {
+        self.get_timestamp().timestamp()
+    }
+
     pub fn azimuth_offset(&mut self) -> f32 {
         self.secondary_angle()
     }

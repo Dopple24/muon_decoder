@@ -53,7 +53,9 @@
   "muon_list_total_energy": "total_energy",
   "muon_list_size": "size",
   "muon_list_let_avg": "LET",
+  "muon_list_avg": "average_energy",
   "muon_list_timestamp": "timestamp",
+  "muon_list_datetime": "datetime",
   "muon_list_frame_index": "frame#",
   "muon_list_file": "file",
   "save_csv": "Save CSV"

@@ -53,6 +53,8 @@
   "muon_list_total_energy": "vsa_energia",
   "muon_list_size": "velkost",
   "muon_list_let_avg": "LET",
+  "muon_list_datetime": "cas",
+  "muon_list_avg": "sredna energia",
   "muon_list_timestamp": "vreme",
   "muon_list_frame_index": "ramec#",
   "muon_list_file": "sobor",

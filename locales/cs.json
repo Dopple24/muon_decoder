@@ -53,7 +53,9 @@
   "muon_list_total_energy": "celková_energie",
   "muon_list_size": "velikost",
   "muon_list_let_avg": "LET",
+  "muon_list_avg": "průměrná_energie",
   "muon_list_timestamp": "časová_značka",
+  "muon_list_datetime": "čas",
   "muon_list_frame_index": "snímek#",
   "muon_list_file": "soubor",
   "save_csv": "Uložit CSV"

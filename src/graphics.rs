@@ -51,9 +51,11 @@ impl Orientation {
 #[derive(Debug)]
 pub struct Muon {
     file: PathBuf,
-    timestamp: chrono::DateTime<Utc>,
+    datetime: chrono::DateTime<Utc>,
+    timestamp: i64,
     frame_index: usize,
     total_energy: f32,
+    average_energy: f32,
     azimuth: f32,
     abs_angle_primary: f32,
     azimuth_offset: f32,
@@ -397,8 +399,10 @@ impl MatrixApp {
                     if part_type == PartType::StraightTrack {
                         muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
-                            timestamp: p.timestamp,
+                            timestamp: particle.unix(),
+                            datetime: particle.get_timestamp(),
                             frame_index,
+                            average_energy: particle.avg_energy(&p.matrix),
                             total_energy: particle.total_energy(&p.matrix),
                             azimuth: particle.azimuth(),
                             azimuth_offset: particle.azimuth_offset(),
@@ -410,8 +414,10 @@ impl MatrixApp {
                     } else if part_type == PartType::IntStraightTrack {
                         sus_muons_buf.lock().unwrap().push(Muon {
                             file: file_path.clone(),
-                            timestamp: p.timestamp,
+                            timestamp: particle.unix(),
+                            datetime: particle.get_timestamp(),
                             frame_index,
+                            average_energy: particle.avg_energy(&p.matrix),
                             total_energy: particle.total_energy(&p.matrix),
                             azimuth: particle.azimuth(),
                             azimuth_offset: particle.azimuth_offset(),
@@ -922,7 +928,7 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
     let mut content = String::new();
 
     content.push_str(&format!(
-        "{},{},{},{},{},{},{},{},{},{}\n",
+        "{},{},{},{},{},{},{},{},{},{},{},{}\n",
         &texts.muon_list_zenith,
         &texts.muon_list_abs_angle_primary,
         &texts.muon_list_azimuth,
@@ -930,6 +936,8 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
         &texts.muon_list_total_energy,
         &texts.muon_list_size,
         &texts.muon_list_let_avg,
+        &texts.muon_list_avg,
+        &texts.muon_list_datetime,
         &texts.muon_list_timestamp,
         &texts.muon_list_frame_index,
         &texts.muon_list_file,
@@ -950,6 +958,8 @@ fn add_muons_to_csv(muons: &[Muon], csv: &mut String) {
             muon.total_energy,
             muon.size,
             muon.let_avg,
+            muon.average_energy,
+            muon.datetime,
             muon.timestamp,
             muon.frame_index,
             muon.file.to_string_lossy()
@@ -982,7 +992,7 @@ fn show_muon_grid(
     ui.push_id(id, |ui| {
         TableBuilder::new(ui)
             .striped(true)
-            .columns(Column::auto(), 10)
+            .columns(Column::auto(), 12)
             .header(20.0, |mut header| {
                 let headers = [
                     &texts.muon_list_zenith,
@@ -992,7 +1002,9 @@ fn show_muon_grid(
                     &texts.muon_list_total_energy,
                     &texts.muon_list_size,
                     &texts.muon_list_let_avg,
+                    &texts.muon_list_avg,
                     &texts.muon_list_timestamp,
+                    &texts.muon_list_datetime,
                     &texts.muon_list_frame_index,
                     &texts.muon_list_file,
                 ];
@@ -1068,7 +1080,13 @@ fn show_muon_grid(
                         ui.add(egui::Label::new(muon.let_avg.to_string()).wrap(false));
                     });
                     row.col(|ui| {
+                        ui.add(egui::Label::new(muon.average_energy.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
                         ui.add(egui::Label::new(muon.timestamp.to_string()).wrap(false));
+                    });
+                    row.col(|ui| {
+                        ui.add(egui::Label::new(muon.datetime.to_string()).wrap(false));
                     });
                     row.col(|ui| {
                         ui.add(egui::Label::new(muon.frame_index.to_string()).wrap(false));
@@ -1140,19 +1158,33 @@ fn sort_muons_in_place(muons: &mut [Muon], column: Option<usize>, ascending: boo
             }
             7 => {
                 if ascending {
+                    muons.sort_by(|a, b| compare_f32(a.average_energy, b.average_energy));
+                } else {
+                    muons.sort_by(|a, b| compare_f32_desc(b.average_energy, a.average_energy));
+                }
+            }
+            8 => {
+                if ascending {
                     muons.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
                 } else {
                     muons.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
                 }
             }
-            8 => {
+            9 => {
+                if ascending {
+                    muons.sort_by(|a, b| a.datetime.cmp(&b.datetime));
+                } else {
+                    muons.sort_by(|a, b| b.datetime.cmp(&a.datetime));
+                }
+            }
+            10 => {
                 if ascending {
                     muons.sort_by(|a, b| a.frame_index.cmp(&b.frame_index));
                 } else {
                     muons.sort_by(|a, b| b.frame_index.cmp(&a.frame_index));
                 }
             }
-            9 => {
+            11 => {
                 if ascending {
                     muons.sort_by(|a, b| a.file.cmp(&b.file));
                 } else {
