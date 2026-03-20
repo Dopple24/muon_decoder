@@ -630,8 +630,12 @@ impl eframe::App for MatrixApp {
                 let response_al = ui.checkbox(&mut self.show_heavy_blob, &self.texts.heavy_blob);
                 let response_be = ui.checkbox(&mut self.show_curly_track, &self.texts.curly_track);
                 let response_ga = ui.checkbox(&mut self.show_dot, &self.texts.dot);
-                let response_mu = ui.checkbox(&mut self.show_straight_track, &self.texts.straight_track);
-                let response_is = ui.checkbox(&mut self.show_int_straight_track, &self.texts.int_straight_track);
+                let response_mu =
+                    ui.checkbox(&mut self.show_straight_track, &self.texts.straight_track);
+                let response_is = ui.checkbox(
+                    &mut self.show_int_straight_track,
+                    &self.texts.int_straight_track,
+                );
                 let response_sm = ui.checkbox(&mut self.show_heavy_track, &self.texts.heavy_track);
                 let response_un = ui.checkbox(&mut self.show_unknown, &self.texts.unknown);
                 let response_sh =
@@ -659,6 +663,20 @@ impl eframe::App for MatrixApp {
             .resizable(true)
             .min_width(150.0)
             .show(ctx, |ui| {
+                if ui.button(&self.texts.export_all).clicked() {
+                    let mut big_csv = build_csv(&[], &self.texts);
+                    for i in 0..self.matricees.len() {
+                        self.current_file = i;
+                        self.init_compound_mode();
+                        add_muons_to_csv(&self.muons, &mut big_csv);
+                        add_muons_to_csv(&self.sus_muons, &mut big_csv);
+                        self.matricees[i].clear_cache();
+                    }
+
+                    if let Err(e) = export_csv(&big_csv, &self.texts) {
+                        self.error = Some(e);
+                    }
+                }
                 egui::ScrollArea::horizontal()
                     .id_source("muons_scroll")
                     .show(ui, |ui| {
@@ -925,8 +943,13 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
         &texts.muon_list_file,
     ));
 
+    add_muons_to_csv(muons, &mut content);
+
+    content
+}
+fn add_muons_to_csv(muons: &[Muon], csv: &mut String) {
     for muon in muons {
-        content.push_str(&format!(
+        csv.push_str(&format!(
             "{},{},{},{},{},{},{},{},{},{},{},{}\n",
             muon.zenith,
             muon.abs_angle_primary,
@@ -942,8 +965,6 @@ fn build_csv(muons: &[Muon], texts: &crate::Texts) -> String {
             muon.file.to_string_lossy()
         ));
     }
-
-    content
 }
 fn export_csv(content: &str, texts: &crate::Texts) -> Result<(), String> {
     if let Some(path) = FileDialog::new()

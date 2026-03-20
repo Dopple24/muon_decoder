@@ -19,6 +19,7 @@
   "muon_section_header": "📊 Muons",
   "sus_muon_section_header": "📊 Interesting Muons",
   "export": "export",
+  "export_all": "export all",
   "import": "📂 Open File",
   "import_dialog_title": "Enter Depth",
   "import_dialog_dimensions": "Dimensions",

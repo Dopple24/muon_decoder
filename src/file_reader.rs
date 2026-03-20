@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Error};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Default)]
 pub struct Tracks {
@@ -36,7 +37,8 @@ impl Tracks {
             .unwrap_or(vec![vec![0.0; SIZE * SIZE]; 1])
             .into_iter()
             .enumerate()
-            .map(|(time, matrix)| {
+            .map(|(time, mut matrix)| {
+                matrix.extend_from_slice(&vec![0.0; (SIZE * SIZE) - matrix.len()]);
                 Frame::new(matrix, {
                     if time >= timestamps.len() {
                         chrono::DateTime::default()
@@ -159,12 +161,16 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
         }
     }
     let paths = std::fs::read_dir(path).unwrap();
-    let mut files: Vec<Tracks> = Vec::new();
+    let files: Arc<Mutex<Vec<Tracks>>> = Arc::new(Mutex::new(Vec::new()));
+    let files_return = files.clone();
+    let mut handles: Vec<std::thread::JoinHandle<()>> = Vec::new();
     for file in paths {
+        let files_clone = files.clone();
+        let handle = std::thread::spawn(move || {
         let ok_file = match file {
             Ok(val) => val,
             Err(_) => {
-                continue;
+                return;
             }
         };
         let meta = ok_file.metadata();
@@ -172,10 +178,10 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
             Ok(val) => {
                 if val.is_dir() {
                     if let Ok(fils) = &mut list_dir(&ok_file.path()) {
-                        files.append(fils);
+                        files_clone.lock().unwrap().append(fils);
                     }
                 } else if val.is_file() {
-                    let file_desc = File::open(ok_file.path())?;
+                    let file_desc = File::open(ok_file.path()).unwrap();
                     let reader = std::io::BufReader::new(&file_desc);
                     let lines_r = reader.lines();
                     let mut lines = Vec::new();
@@ -186,7 +192,7 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
                         }
                     }
                     if read_lines(&lines).is_ok() {
-                        files.push(Tracks {
+                        files_clone.lock().unwrap().push(Tracks {
                             tracks_cache: None,
                             file_content: lines,
                             file_path: ok_file.path().to_path_buf(),
@@ -196,12 +202,15 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
             }
             Err(y) => {
                 eprintln!("meta is wrong: {}", y);
-                continue;
+                return
             }
         }
+        });
+        handles.push(handle);
     }
 
-    Ok(files)
+    handles.into_iter().for_each(|h| { let _ = h.join(); });
+    Ok(std::mem::take(&mut *files_return.lock().unwrap()))
 }
 
 fn get_timestamps(path: &Path) -> Vec<chrono::DateTime<Utc>> {

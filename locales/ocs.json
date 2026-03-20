@@ -19,6 +19,7 @@
   "muon_section_header": "📊 Mionove",
   "sus_muon_section_header": "📊 Podezr mionove",
   "export": "Izvesti",
+  "export_all": "Izvesti vse",
   "import": "📂 Otvoriti sobor",
   "import_dialog_title": "Vloz glubinu",
   "import_dialog_dimensions": "Razmery",
