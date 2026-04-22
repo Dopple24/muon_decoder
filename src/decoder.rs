@@ -22,7 +22,7 @@ pub enum PartType {
 pub struct Particle {
     pixel_depth: i32,
     pub pixel_width: f32,
-    track: Vec<(usize, usize)>,
+    track: Vec<(usize, usize, f32)>,
     frame_index: usize,
     total_energy_cache: Option<f32>,
     roundness_cache: Option<f32>,
@@ -35,7 +35,7 @@ pub struct Particle {
 
 impl Particle {
     pub fn new(
-        track: Vec<(usize, usize)>,
+        track: Vec<(usize, usize, f32)>,
         frame_index: usize,
         pixel_depth: i32,
         pixel_width: f32,
@@ -65,7 +65,7 @@ impl Particle {
         self.frame_index
     }
 
-    pub fn get_track(&self) -> Vec<(usize, usize)> {
+    pub fn get_track(&self) -> Vec<(usize, usize, f32)> {
         self.track.clone()
     }
     pub fn size(&self) -> usize {
@@ -77,7 +77,7 @@ impl Particle {
             return val;
         }
 
-        let energy: f32 = self.track.iter().map(|&(x, y)| grid[x * SIZE + y]).sum();
+        let energy: f32 = self.track.iter().map(|&(x, y, _)| grid[x * SIZE + y]).sum();
 
         self.total_energy_cache = Some(energy);
         energy
@@ -86,7 +86,7 @@ impl Particle {
     pub fn max_energy(&self, grid: &[f32]) -> f32 {
         self.track
             .iter()
-            .map(|&(x, y)| grid[x * SIZE + y])
+            .map(|&(x, y, _)| grid[x * SIZE + y])
             .fold(0.0, |acc, val| acc.max(val))
     }
 
@@ -103,7 +103,7 @@ impl Particle {
         let (mut min_x, mut max_x) = (usize::MAX, usize::MIN);
         let (mut min_y, mut max_y) = (usize::MAX, usize::MIN);
 
-        for &(x, y) in &self.track {
+        for &(x, y, _) in &self.track {
             min_x = min_x.min(x);
             max_x = max_x.max(x);
             min_y = min_y.min(y);
@@ -272,10 +272,10 @@ impl Particle {
     }
 }
 
-fn roundness(points: &[(usize, usize)]) -> f32 {
+fn roundness(points: &[(usize, usize, f32)]) -> f32 {
     let mp: MultiPoint<f64> = points
         .iter()
-        .map(|&(x, y)| Coord {
+        .map(|&(x, y, _)| Coord {
             x: x as f64,
             y: y as f64,
         })
@@ -289,10 +289,10 @@ fn roundness(points: &[(usize, usize)]) -> f32 {
     (4.0 * PI * area / (perimeter * perimeter)) as f32
 }
 
-fn linear_regretion(track: &[(usize, usize)]) -> (f32, f32) {
+fn linear_regretion(track: &[(usize, usize, f32)]) -> (f32, f32) {
     let mut total_x = 0.0;
     let mut total_y = 0.0;
-    for (x, y) in track {
+    for (x, y, _) in track {
         total_x += *x as f32;
         total_y += *y as f32;
     }
@@ -301,32 +301,32 @@ fn linear_regretion(track: &[(usize, usize)]) -> (f32, f32) {
     (avg_x, avg_y)
 }
 
-fn get_totals((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> (f32, f32) {
+fn get_totals((avg_x, avg_y): &(f32, f32), track: &[(usize, usize, f32)]) -> (f32, f32) {
     let mut total_off_x = 0.0;
     let mut total_off = 0.0;
-    for (x, y) in track {
+    for (x, y, _) in track {
         total_off_x += (*x as f32 - avg_x).powi(2);
         total_off += (*x as f32 - avg_x) * (*y as f32 - avg_y);
     }
     (total_off, total_off_x)
 }
 
-fn get_totals_reverse((avg_y, avg_x): &(f32, f32), track: &[(usize, usize)]) -> (f32, f32) {
+fn get_totals_reverse((avg_y, avg_x): &(f32, f32), track: &[(usize, usize, f32)]) -> (f32, f32) {
     let mut total_off_x = 0.0;
     let mut total_off = 0.0;
-    for (y, x) in track {
+    for (y, x, _) in track {
         total_off_x += (*x as f32 - avg_x).powi(2);
         total_off += (*x as f32 - avg_x) * (*y as f32 - avg_y);
     }
     (total_off, total_off_x)
 }
 
-fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize)]) -> f32 {
+fn slope((avg_x, avg_y): &(f32, f32), track: &[(usize, usize, f32)]) -> f32 {
     let (total_off, total_off_x) = get_totals(&(*avg_x, *avg_y), track);
     total_off / total_off_x //slope
 }
 
-fn winding_of_path(track: &[(usize, usize)]) -> f32 {
+fn winding_of_path(track: &[(usize, usize, f32)]) -> f32 {
     let avgs = linear_regretion(track);
     let mut mse = 0.0;
 
@@ -336,7 +336,7 @@ fn winding_of_path(track: &[(usize, usize)]) -> f32 {
 
         let b = avgs.1 - avgs.0 * slope;
 
-        for (x, y) in track {
+        for (x, y, _) in track {
             let y_pred = slope * (*x as f32) + b;
             let diff = *y as f32 - y_pred;
             mse += diff * diff;
@@ -350,7 +350,7 @@ fn winding_of_path(track: &[(usize, usize)]) -> f32 {
 
         let b = avgs.0 - avgs.1 * slope;
 
-        for (y, x) in track {
+        for (y, x, _) in track {
             let y_pred = slope * (*x as f32) + b;
             let diff = *y as f32 - y_pred;
             mse += diff * diff;
