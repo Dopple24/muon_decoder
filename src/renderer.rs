@@ -89,7 +89,7 @@ impl DimensionalTrack {
         let track = particle.get_track();
         let mut sum_x = 0.0;
         let mut sum_y = 0.0;
-        for &(x, y) in track.iter() {
+        for &(x, y, _) in track.iter() {
             sum_x += x as f32;
             sum_y += y as f32;
         }
@@ -588,7 +588,10 @@ impl Renderer3D {
     }
 }
 
-pub fn update_data(tracks: Vec<Vec<(usize, usize)>>, app_borrow: &mut crate::graphics::MatrixApp) {
+pub fn update_data(
+    tracks: Vec<Vec<(usize, usize, f32)>>,
+    app_borrow: &mut crate::graphics::MatrixApp,
+) {
     let particles = tracks
         .into_iter()
         .map(|t| {

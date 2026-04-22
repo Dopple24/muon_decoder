@@ -77,12 +77,12 @@ fn main() -> eframe::Result<()> {
     let options = match load_icon() {
         Some(icon) => eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
-                .with_inner_size([920.0, 620.0])
+                .with_inner_size([1020.0, 620.0])
                 .with_icon(icon),
             ..Default::default()
         },
         None => eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]),
+            viewport: egui::ViewportBuilder::default().with_inner_size([1020.0, 620.0]),
             ..Default::default()
         },
     };
@@ -354,6 +354,8 @@ define_locale! {
     muon_list_file,
     muon_list_azimuth_offset,
     save_csv,
+    heatmap,
+    heatmap_log_scale,
 }
 
 #[cfg(test)]
@@ -366,9 +368,11 @@ mod tests {
         for l in Langs::list(true) {
             // load_strict panics on fail, letting you know if a translation is missing
             // regular load falls back on the english version (or prints a warning) to avoid runtime panics
-            Texts::load_strict(&l).inspect_err(|e| {
-                panic!("Failed to load locale {}:\n  Missing values: {:?}", l, e);
-            }).unwrap();
+            Texts::load_strict(&l)
+                .inspect_err(|e| {
+                    panic!("Failed to load locale {}:\n  Missing values: {:?}", l, e);
+                })
+                .unwrap();
         }
     }
 }

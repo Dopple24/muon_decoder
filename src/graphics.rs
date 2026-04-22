@@ -5,12 +5,15 @@ use crate::{
     particle_extractor::{self},
 };
 use chrono::Utc;
-use eframe::egui::{self, ColorImage};
+use eframe::egui::{self, Color32, ColorImage};
 use egui::CursorIcon;
 use rayon::prelude::*;
 use rfd::FileDialog;
-use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, io::Write, path::PathBuf};
+use std::{
+    f32,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Mode {
@@ -97,6 +100,11 @@ pub struct MatrixApp {
     show_unknown: bool,
     show_too_short_muon: bool,
 
+    show_heatmap: bool,
+    heatmap_log: bool,
+    heatmap_ref_img: ColorImage,
+    heatmap_max: Option<f32>,
+
     show_dialog: bool,
     input_depth: String,
     input_min_muon_size: String,
@@ -157,6 +165,13 @@ impl MatrixApp {
             show_too_short_muon: true,
             show_int_straight_track: true,
             show_dialog: false,
+            show_heatmap: true,
+            heatmap_log: false,
+            heatmap_ref_img: ColorImage {
+                size: [1, 1],
+                pixels: vec![],
+            },
+            heatmap_max: None,
             input_min_muon_size: config.default_min_muon_size.to_string(),
             input_depth: config.default_pixel_depth.to_string(),
             pixel_depth: config.default_pixel_depth as i32,
@@ -170,8 +185,46 @@ impl MatrixApp {
             sus_muon_sort_ascending: true,
             loading: false,
         };
+
+        const GRADIENT_WIDTH: usize = 128;
+        const GRADIENT_HEIGHT: usize = 16;
+        let mut gradient: [Color32; _] = [Color32::BLACK; GRADIENT_WIDTH];
+        for i in 0..GRADIENT_WIDTH {
+            gradient[i] =
+                app.get_color_gradient((GRADIENT_WIDTH - 1 - i) as f32, GRADIENT_WIDTH as f32);
+        }
+
+        let mut grad_pixels: Vec<Color32> = vec![];
+        for _ in 0..GRADIENT_HEIGHT {
+            grad_pixels.append(&mut gradient.clone().to_vec());
+        }
+
+        app.heatmap_ref_img = ColorImage {
+            size: [GRADIENT_WIDTH, GRADIENT_HEIGHT],
+            pixels: grad_pixels,
+        };
+
         app.update_image();
         app
+    }
+
+    fn get_color_gradient(&self, val: f32, max_ref: f32) -> Color32 {
+        let proportion = if self.heatmap_log {
+            if val == 0.0 {
+                0.0
+            } else {
+                val.log10() / max_ref.log10()
+            }
+        } else {
+            val / max_ref
+        };
+
+        Color32::from_rgb(
+            (64.0 + (u8::MAX as f32 - 64.0) * proportion) as u8,
+            (u8::MAX as f32 * proportion) as u8,
+            (((proportion * 2.0 * f32::consts::PI).cos().powi(3) + 1.0) / 2.0
+                * (200.0 + (u8::MAX as f32 - 200.0) * proportion)) as u8,
+        )
     }
 
     /// Update the image for current track or combined tracks
@@ -201,23 +254,37 @@ impl MatrixApp {
             return;
         }
 
-        let tracks_to_draw: Vec<Vec<(usize, usize)>> = match self.current_mode {
+        let tracks_to_draw: Vec<Vec<(usize, usize, f32)>> = match self.current_mode {
             Mode::Single => vec![self.tracks_to_draw[self.current_track].get_track()],
             _ => self.tracks_to_draw.iter().map(|p| p.get_track()).collect(),
         };
 
+        let mut max: f32 = 0.0;
+        for track in &tracks_to_draw {
+            for pixel in track {
+                if pixel.2 > max {
+                    max = pixel.2;
+                }
+            }
+        }
+
+        self.heatmap_max = Some(max);
+
         crate::renderer::update_data(tracks_to_draw.clone(), self);
 
         for track_cells in tracks_to_draw {
-            let color = egui::Color32::WHITE;
-            for (x, y) in track_cells {
+            for (x, y, intensity) in track_cells {
                 for dx in 0..self.scale {
                     for dy in 0..self.scale {
                         // Rotate 90 degrees counter-clockwise: (x,y) -> (y, size_x-x)
                         let px = (size_y - 1 - y) * self.scale + dy;
                         let py = x * self.scale + dx;
                         if px < img_x && py < img_y {
-                            pixels[px * img_y + py] = color;
+                            pixels[px * img_y + py] = if self.show_heatmap {
+                                self.get_color_gradient(intensity, max)
+                            } else {
+                                egui::Color32::WHITE
+                            };
                         }
                     }
                 }
@@ -653,6 +720,30 @@ impl eframe::App for MatrixApp {
                     self.update_image();
                     // this is redundant, update_image() already calls update_counter itself()
                     // self.update_counter();
+                }
+
+                ui.separator();
+
+                if ui.checkbox(&mut self.show_heatmap, &self.texts.heatmap).changed() {
+                    self.update_image();
+                    self.needs_update = true;
+                }
+
+                if let Some(max_val) = self.heatmap_max {
+                    if self.show_heatmap {
+                        if ui.checkbox(&mut self.heatmap_log, &self.texts.heatmap_log_scale).changed() {
+                            self.update_image();
+                        }
+
+                        ui.label(max_val.to_string());
+
+                        let texture = ui.ctx().load_texture(
+                            "gradient_tex",
+                            self.heatmap_ref_img.clone(),
+                            Default::default(),
+                        );
+                        ui.image(&texture);
+                    }
                 }
             });
 
