@@ -724,14 +724,14 @@ impl eframe::App for MatrixApp {
 
                 ui.separator();
 
-                if ui.checkbox(&mut self.show_heatmap, "heatmap").changed() {
+                if ui.checkbox(&mut self.show_heatmap, &self.texts.heatmap).changed() {
                     self.update_image();
                     self.needs_update = true;
                 }
 
                 if let Some(max_val) = self.heatmap_max {
                     if self.show_heatmap {
-                        if ui.checkbox(&mut self.heatmap_log, "log").changed() {
+                        if ui.checkbox(&mut self.heatmap_log, &self.texts.heatmap_log_scale).changed() {
                             self.update_image();
                         }
 

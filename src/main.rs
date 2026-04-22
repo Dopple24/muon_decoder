@@ -354,6 +354,8 @@ define_locale! {
     muon_list_file,
     muon_list_azimuth_offset,
     save_csv,
+    heatmap,
+    heatmap_log_scale,
 }
 
 #[cfg(test)]

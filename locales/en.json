@@ -58,5 +58,7 @@
   "muon_list_datetime": "datetime",
   "muon_list_frame_index": "frame#",
   "muon_list_file": "file",
-  "save_csv": "Save CSV"
+  "save_csv": "Save CSV",
+  "heatmap": "Heatmap",
+  "heatmap_log_scale": "Logarithmic scale"
 }

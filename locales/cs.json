@@ -58,5 +58,7 @@
   "muon_list_datetime": "čas",
   "muon_list_frame_index": "snímek#",
   "muon_list_file": "soubor",
-  "save_csv": "Uložit CSV"
+  "save_csv": "Uložit CSV",
+  "heatmap": "Teplomapa",
+  "heatmap_log_scale": "Logaritmická škála"
 }
