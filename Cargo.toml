@@ -1,4 +1,6 @@
 [package]
+# The github workflows depend on this name not changing
+# if you want to change it, make sure to fix .github/workflows/build.yml
 name = "particle_decoder"
 version = "0.1.0"
 edition = "2024"
