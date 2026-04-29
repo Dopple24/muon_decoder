@@ -60,5 +60,7 @@
   "muon_list_file": "soubor",
   "save_csv": "Uložit CSV",
   "heatmap": "Teplomapa",
-  "heatmap_log_scale": "Logaritmická škála"
+  "heatmap_log_scale": "Logaritmická škála",
+  "heatmap_floor": "Spodní mez",
+  "heatmap_ceil": "Vrchní mez"
 }

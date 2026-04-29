@@ -60,5 +60,7 @@
   "muon_list_file": "file",
   "save_csv": "Save CSV",
   "heatmap": "Heatmap",
-  "heatmap_log_scale": "Logarithmic scale"
+  "heatmap_log_scale": "Logarithmic scale",
+  "heatmap_floor": "Floor",
+  "heatmap_ceil": "Ceiling"
 }

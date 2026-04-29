@@ -60,5 +60,7 @@
   "muon_list_file": "sobor",
   "save_csv": "Sohraniti CSV",
   "heatmap": "Teplokartografický svitek",
-  "heatmap_log_scale": "Logaritmická stupnica"
+  "heatmap_log_scale": "Logaritmická stupnica",
+  "heatmap_floor": "podloga",
+  "heatmap_ceil": "doskowa strecha"
 }

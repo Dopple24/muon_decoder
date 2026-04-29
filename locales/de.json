@@ -60,5 +60,7 @@
   "muon_list_file": "Datei",
   "save_csv": "CSV speichern",
   "heatmap": "Hitzekarte",
-  "heatmap_log_scale": "Logarithmischer Maßstab"
+  "heatmap_log_scale": "Logarithmischer Maßstab",
+  "heatmap_floor": "Boden",
+  "heatmap_ceil": "Decke"
 }

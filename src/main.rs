@@ -356,6 +356,8 @@ define_locale! {
     save_csv,
     heatmap,
     heatmap_log_scale,
+    heatmap_floor,
+    heatmap_ceil,
 }
 
 #[cfg(test)]

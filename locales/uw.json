@@ -60,5 +60,7 @@
   "muon_list_datetime": "datetime",
   "save_csv": "Save CSV",
   "heatmap": "Hewtmwp",
-  "heatmap_log_scale": "Wogawithmic scawe"
+  "heatmap_log_scale": "Wogawithmic scawe",
+  "heatmap_floor": "Fwoow",
+  "heatmap_ceil": "Ceiw"
 }
