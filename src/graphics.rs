@@ -273,10 +273,16 @@ impl MatrixApp {
     }
 
     fn move_track(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = (self.current_track + 1) % self.tracks_to_draw.len().max(1);
     }
 
     fn move_track_back(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = if self.current_track == 0 {
             self.tracks_to_draw.len().max(1) - 1
         } else {
@@ -285,6 +291,9 @@ impl MatrixApp {
     }
 
     fn matrix_move(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = 0;
         // check if we are at the end of the current file
         if self.current_matrix >= self.matricees[self.current_file].get_tracks().len().max(1) - 1 {
@@ -299,6 +308,9 @@ impl MatrixApp {
     }
 
     fn matrix_move_back(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = 0;
         self.current_matrix = if self.current_matrix == 0 {
             self.matricees[self.current_file].clear_cache();
@@ -315,6 +327,9 @@ impl MatrixApp {
     }
 
     fn move_file(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = 0;
         self.current_matrix = 0;
         let old_file = self.current_file;
@@ -324,6 +339,9 @@ impl MatrixApp {
     }
 
     fn move_file_back(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         self.current_track = 0;
         self.current_matrix = 0;
         let old_file = self.current_file;
@@ -355,6 +373,9 @@ impl MatrixApp {
     }
 
     fn init_compound_mode(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         // Clear old data before loading new data
         self.all_tracks.clear();
         self.sus_muons.clear();
@@ -446,6 +467,9 @@ impl MatrixApp {
     }
 
     fn init_combined(&mut self) {
+        if self.matricees.is_empty() {
+            return;
+        }
         let curr_matrix = &self.matricees[self.current_file].get_tracks()[self.current_matrix];
         self.all_tracks = crate::particle_extractor::extract(
             &curr_matrix.matrix,
@@ -640,6 +664,44 @@ impl eframe::App for MatrixApp {
                 let response_un = ui.checkbox(&mut self.show_unknown, &self.texts.unknown);
                 let response_sh =
                     ui.checkbox(&mut self.show_too_short_muon, &self.texts.too_short_muon);
+                ui.add_space(10.0);
+                let all_operator_clicked = if self.show_curly_track
+                    && self.show_dot
+                    && self.show_heavy_blob
+                    && self.show_straight_track
+                    && self.show_int_straight_track
+                    && self.show_heavy_track
+                    && self.show_unknown
+                    && self.show_too_short_muon
+                {
+                    if ui.button(&self.texts.unselect_all).clicked() {
+                        self.show_curly_track = false;
+                        self.show_dot = false;
+                        self.show_heavy_blob = false;
+                        self.show_straight_track = false;
+                        self.show_int_straight_track = false;
+                        self.show_heavy_track = false;
+                        self.show_unknown = false;
+                        self.show_too_short_muon = false;
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    if ui.button(&self.texts.select_all).clicked() {
+                        self.show_curly_track = true;
+                        self.show_dot = true;
+                        self.show_heavy_blob = true;
+                        self.show_straight_track = true;
+                        self.show_int_straight_track = true;
+                        self.show_heavy_track = true;
+                        self.show_unknown = true;
+                        self.show_too_short_muon = true;
+                        true
+                    } else {
+                        false
+                    }
+                };
 
                 if response_al.changed()
                     || response_be.changed()
@@ -649,6 +711,7 @@ impl eframe::App for MatrixApp {
                     || response_sh.changed()
                     || response_un.changed()
                     || response_is.changed()
+                    || all_operator_clicked
                 {
                     self.update_image();
                     // this is redundant, update_image() already calls update_counter itself()
@@ -791,6 +854,10 @@ impl eframe::App for MatrixApp {
                                             self.matricees = mat;
                                             let mut id_map =
                                                 vec![vec![0; crate::SIZE]; crate::SIZE];
+                                            if self.matricees.is_empty() {
+                                                self.loading = false;
+                                                return;
+                                            }
                                             let curr_matrix = &self.matricees[self.current_matrix]
                                                 .get_tracks()[self.current_matrix];
                                             self.all_tracks = crate::particle_extractor::extract(
@@ -842,6 +909,10 @@ impl eframe::App for MatrixApp {
 
                 ui.add_space(8.0);
 
+                if self.matricees.is_empty() {
+                    return;
+                }
+
                 ui.label(format!(
                     "{} {}/{}\n {}: {}",
                     self.texts.tracks,
@@ -890,11 +961,11 @@ impl eframe::App for MatrixApp {
                     ));
                 }
 
-                else if self.current_mode == Mode::Combined && !self.tracks_to_draw.is_empty(){
+                else if self.current_mode == Mode::Combined{
                     ui.label(format!(
                         "{}: {}",
                         &self.texts.get_frame_index_label,
-                        &self.tracks_to_draw[self.current_track.min(self.tracks_to_draw.len())].get_frame_index() + 1
+                        &self.current_matrix + 1
                     ));
                 }
             });

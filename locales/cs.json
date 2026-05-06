@@ -8,12 +8,12 @@
   "compound_mode": "Složený",
   "mode": "Režim",
   "particles": "📊 Částice",
-  "heavy_blob": "Těžký shluk",
-  "curly_track": "Kudrnatá stopa",
+  "heavy_blob": "Velká kruhová stopa",
+  "curly_track": "Zakřivená stopa",
   "dot": "Tečka",
   "straight_track": "Přímá stopa",
   "int_straight_track": "Zajímavá přímá stopa",
-  "heavy_track": "Těžká stopa",
+  "heavy_track": "Tlustá stopa",
   "unknown": "Neznámé",
   "too_short_muon": "Krátký mion",
   "muon_section_header": "📊 Miony",
@@ -58,5 +58,7 @@
   "muon_list_datetime": "čas",
   "muon_list_frame_index": "snímek#",
   "muon_list_file": "soubor",
-  "save_csv": "Uložit CSV"
+  "save_csv": "Uložit CSV",
+  "select_all": "Označit vše",
+  "unselect_all": "Odoznačit vše"
 }

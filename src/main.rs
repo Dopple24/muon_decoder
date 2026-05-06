@@ -354,6 +354,8 @@ define_locale! {
     muon_list_file,
     muon_list_azimuth_offset,
     save_csv,
+    select_all,
+    unselect_all,
 }
 
 #[cfg(test)]
@@ -366,9 +368,11 @@ mod tests {
         for l in Langs::list(true) {
             // load_strict panics on fail, letting you know if a translation is missing
             // regular load falls back on the english version (or prints a warning) to avoid runtime panics
-            Texts::load_strict(&l).inspect_err(|e| {
-                panic!("Failed to load locale {}:\n  Missing values: {:?}", l, e);
-            }).unwrap();
+            Texts::load_strict(&l)
+                .inspect_err(|e| {
+                    panic!("Failed to load locale {}:\n  Missing values: {:?}", l, e);
+                })
+                .unwrap();
         }
     }
 }

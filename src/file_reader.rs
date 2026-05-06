@@ -167,49 +167,51 @@ pub fn list_dir(path: &Path) -> Result<Vec<Tracks>, Box<dyn std::error::Error>> 
     for file in paths {
         let files_clone = files.clone();
         let handle = std::thread::spawn(move || {
-        let ok_file = match file {
-            Ok(val) => val,
-            Err(_) => {
-                return;
-            }
-        };
-        let meta = ok_file.metadata();
-        match meta {
-            Ok(val) => {
-                if val.is_dir() {
-                    if let Ok(fils) = &mut list_dir(&ok_file.path()) {
-                        files_clone.lock().unwrap().append(fils);
-                    }
-                } else if val.is_file() {
-                    let file_desc = File::open(ok_file.path()).unwrap();
-                    let reader = std::io::BufReader::new(&file_desc);
-                    let lines_r = reader.lines();
-                    let mut lines = Vec::new();
-                    for l in lines_r {
-                        match l {
-                            Ok(l) => lines.push(l),
-                            Err(_) => continue,
+            let ok_file = match file {
+                Ok(val) => val,
+                Err(_) => {
+                    return;
+                }
+            };
+            let meta = ok_file.metadata();
+            match meta {
+                Ok(val) => {
+                    if val.is_dir() {
+                        if let Ok(fils) = &mut list_dir(&ok_file.path()) {
+                            files_clone.lock().unwrap().append(fils);
+                        }
+                    } else if val.is_file() {
+                        let file_desc = File::open(ok_file.path()).unwrap();
+                        let reader = std::io::BufReader::new(&file_desc);
+                        let lines_r = reader.lines();
+                        let mut lines = Vec::new();
+                        for l in lines_r {
+                            match l {
+                                Ok(l) => lines.push(l),
+                                Err(_) => continue,
+                            }
+                        }
+                        if read_lines(&lines).is_ok() {
+                            files_clone.lock().unwrap().push(Tracks {
+                                tracks_cache: None,
+                                file_content: lines,
+                                file_path: ok_file.path().to_path_buf(),
+                            })
                         }
                     }
-                    if read_lines(&lines).is_ok() {
-                        files_clone.lock().unwrap().push(Tracks {
-                            tracks_cache: None,
-                            file_content: lines,
-                            file_path: ok_file.path().to_path_buf(),
-                        })
-                    }
+                }
+                Err(y) => {
+                    eprintln!("meta is wrong: {}", y);
+                    return;
                 }
             }
-            Err(y) => {
-                eprintln!("meta is wrong: {}", y);
-                return
-            }
-        }
         });
         handles.push(handle);
     }
 
-    handles.into_iter().for_each(|h| { let _ = h.join(); });
+    handles.into_iter().for_each(|h| {
+        let _ = h.join();
+    });
     Ok(std::mem::take(&mut *files_return.lock().unwrap()))
 }
 
