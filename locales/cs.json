@@ -60,7 +60,7 @@
   "muon_list_file": "soubor",
   "save_csv": "Uložit CSV",
   "select_all": "Označit vše",
-  "unselect_all": "Odoznačit vše"
+  "unselect_all": "Odoznačit vše",
   "heatmap": "Teplomapa",
   "heatmap_log_scale": "Logaritmická škála"
 }
