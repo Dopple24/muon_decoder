@@ -60,5 +60,7 @@
   "muon_list_file": "Datei",
   "save_csv": "CSV speichern",
   "select_all": "Alles markieren",
-  "unselect_all": "Nichts markieren"
+  "unselect_all": "Nichts markieren",
+  "heatmap": "Hitzekarte",
+  "heatmap_log_scale": "Logarithmischer Maßstab"
 }

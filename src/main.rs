@@ -77,12 +77,12 @@ fn main() -> eframe::Result<()> {
     let options = match load_icon() {
         Some(icon) => eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
-                .with_inner_size([920.0, 620.0])
+                .with_inner_size([1020.0, 620.0])
                 .with_icon(icon),
             ..Default::default()
         },
         None => eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 620.0]),
+            viewport: egui::ViewportBuilder::default().with_inner_size([1020.0, 620.0]),
             ..Default::default()
         },
     };
@@ -356,6 +356,8 @@ define_locale! {
     save_csv,
     select_all,
     unselect_all,
+    heatmap,
+    heatmap_log_scale,
 }
 
 #[cfg(test)]

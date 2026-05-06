@@ -6,7 +6,7 @@ pub fn extract(
     id_map: &mut [Vec<usize>],
     range: i16,
     size: usize,
-) -> HashMap<usize, Vec<(usize, usize)>> {
+) -> HashMap<usize, Vec<(usize, usize, f32)>> {
     let mut next_id: usize = 1;
     let mut parent: HashMap<usize, usize> = HashMap::new();
 
@@ -33,15 +33,17 @@ pub fn extract(
         }
     }
 
-    build_tracks(id_map, &mut parent)
+    build_tracks(id_map, &mut parent, grid, size)
 }
 
 /// Builds a map of particle IDs to their coordinates.
 fn build_tracks(
     id_map: &[Vec<usize>],
     parent: &mut HashMap<usize, usize>,
-) -> HashMap<usize, Vec<(usize, usize)>> {
-    let mut tracks: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+    grid: &[f32],
+    size: usize,
+) -> HashMap<usize, Vec<(usize, usize, f32)>> {
+    let mut tracks: HashMap<usize, Vec<(usize, usize, f32)>> = HashMap::new();
 
     for (y, id_row) in id_map.iter().enumerate() {
         for (x, _) in id_row.iter().enumerate() {
@@ -51,7 +53,10 @@ fn build_tracks(
             }
 
             let root = find(id, parent);
-            tracks.entry(root).or_default().push((x, y));
+            tracks
+                .entry(root)
+                .or_default()
+                .push((x, y, grid[x * size + y]));
         }
     }
 

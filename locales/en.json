@@ -61,4 +61,6 @@
   "save_csv": "Save CSV",
   "select_all": "Select all",
   "unselect_all": "Unselect all"
+  "heatmap": "Heatmap",
+  "heatmap_log_scale": "Logarithmic scale"
 }
