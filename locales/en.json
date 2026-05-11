@@ -62,5 +62,7 @@
   "select_all": "Select all",
   "unselect_all": "Unselect all",
   "heatmap": "Heatmap",
-  "heatmap_log_scale": "Logarithmic scale"
+  "heatmap_log_scale": "Logarithmic scale",
+  "heatmap_floor": "Floor",
+  "heatmap_ceil": "Ceiling"
 }

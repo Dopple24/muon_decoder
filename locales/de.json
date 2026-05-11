@@ -62,5 +62,7 @@
   "select_all": "Alles markieren",
   "unselect_all": "Nichts markieren",
   "heatmap": "Hitzekarte",
-  "heatmap_log_scale": "Logarithmischer Maßstab"
+  "heatmap_log_scale": "Logarithmischer Maßstab",
+  "heatmap_floor": "Boden",
+  "heatmap_ceil": "Decke"
 }

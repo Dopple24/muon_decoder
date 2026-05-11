@@ -358,6 +358,8 @@ define_locale! {
     unselect_all,
     heatmap,
     heatmap_log_scale,
+    heatmap_floor,
+    heatmap_ceil,
 }
 
 #[cfg(test)]

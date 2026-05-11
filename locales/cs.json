@@ -62,5 +62,7 @@
   "select_all": "Označit vše",
   "unselect_all": "Odoznačit vše",
   "heatmap": "Teplomapa",
-  "heatmap_log_scale": "Logaritmická škála"
+  "heatmap_log_scale": "Logaritmická škála",
+  "heatmap_floor": "Spodní mez",
+  "heatmap_ceil": "Vrchní mez"
 }

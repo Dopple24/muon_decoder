@@ -62,5 +62,7 @@
   "select_all": "Oznaciti vse",
   "unselect_all": "Odoznaciti vse",
   "heatmap": "Teplokartografický svitek",
-  "heatmap_log_scale": "Logaritmická stupnica"
+  "heatmap_log_scale": "Logaritmická stupnica",
+  "heatmap_floor": "podloga",
+  "heatmap_ceil": "doskowa strecha"
 }

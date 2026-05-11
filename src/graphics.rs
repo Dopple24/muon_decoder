@@ -104,6 +104,14 @@ pub struct MatrixApp {
     heatmap_log: bool,
     heatmap_ref_img: ColorImage,
     heatmap_max: Option<f32>,
+    heatmap_floor: Option<f32>,
+    heatmap_ceil: Option<f32>,
+
+    show_floor_input: bool,
+    floor_input_text: String,
+    show_ceil_input: bool,
+    ceil_input_text: String,
+    show_bounded: bool,
 
     show_dialog: bool,
     input_depth: String,
@@ -172,6 +180,13 @@ impl MatrixApp {
                 pixels: vec![],
             },
             heatmap_max: None,
+            heatmap_floor: None,
+            heatmap_ceil: None,
+            show_floor_input: false,
+            floor_input_text: String::from(""),
+            show_ceil_input: false,
+            ceil_input_text: String::from(""),
+            show_bounded: false,
             input_min_muon_size: config.default_min_muon_size.to_string(),
             input_depth: config.default_pixel_depth.to_string(),
             pixel_depth: config.default_pixel_depth as i32,
@@ -225,6 +240,43 @@ impl MatrixApp {
             (((proportion * 2.0 * f32::consts::PI).cos().powi(3) + 1.0) / 2.0
                 * (200.0 + (u8::MAX as f32 - 200.0) * proportion)) as u8,
         )
+    }
+
+    fn get_color_gradient_bounded(&self, val: f32, max_ref: f32, floor: f32, ceil: f32) -> Color32 {
+        let max_bounded = if max_ref > ceil { ceil } else { max_ref };
+
+        let bounded_val = if val < ceil {
+            if val < floor {
+                if self.show_bounded {
+                    return Color32::BLACK;
+                } else {
+                    0.0
+                }
+            } else {
+                val - floor
+            }
+        } else {
+            if self.show_bounded {
+                return Color32::BLACK;
+            } else {
+                ceil
+            }
+        };
+
+        self.get_color_gradient(bounded_val, max_bounded)
+    }
+
+    fn get_color_gradient_bounded_opt(
+        &self,
+        val: f32,
+        max_ref: f32,
+        floor: Option<f32>,
+        ceil: Option<f32>,
+    ) -> Color32 {
+        let alw_floor = if let Some(f) = floor { f } else { 0.0 };
+        let alw_ceil = if let Some(c) = ceil { c } else { f32::INFINITY };
+
+        self.get_color_gradient_bounded(val, max_ref, alw_floor, alw_ceil)
     }
 
     /// Update the image for current track or combined tracks
@@ -281,7 +333,12 @@ impl MatrixApp {
                         let py = x * self.scale + dx;
                         if px < img_x && py < img_y {
                             pixels[px * img_y + py] = if self.show_heatmap {
-                                self.get_color_gradient(intensity, max)
+                                self.get_color_gradient_bounded_opt(
+                                    intensity,
+                                    max,
+                                    self.heatmap_floor,
+                                    self.heatmap_ceil,
+                                )
                             } else {
                                 egui::Color32::WHITE
                             };
@@ -569,26 +626,7 @@ impl eframe::App for MatrixApp {
             ctx.output_mut(|o| o.cursor_icon = CursorIcon::Default);
         }
 
-        // ----------------------------
-        // Input handling
-        // ----------------------------
-        if ctx.input(|i| i.key_pressed(Key::ArrowRight)) {
-            self.move_data();
-        }
-
-        if ctx.input(|i| i.key_pressed(Key::ArrowLeft)) {
-            self.move_data_back();
-        }
-
-        if ctx.input(|i| i.key_pressed(Key::M)) && !self.tracks_to_draw.is_empty() {
-            self.current_mode = Mode::Single;
-            self.needs_update = true;
-        }
-
-        if self.needs_update {
-            self.update_image();
-            self.needs_update = false;
-        }
+        let mut disable_keybinds = false;
 
         // Display the 3D renderer window
         self.renderer_3d.show(ctx);
@@ -787,14 +825,20 @@ impl eframe::App for MatrixApp {
 
                 ui.separator();
 
-                if ui.checkbox(&mut self.show_heatmap, &self.texts.heatmap).changed() {
+                if ui
+                    .checkbox(&mut self.show_heatmap, &self.texts.heatmap)
+                    .changed()
+                {
                     self.update_image();
                     self.needs_update = true;
                 }
 
                 if let Some(max_val) = self.heatmap_max {
                     if self.show_heatmap {
-                        if ui.checkbox(&mut self.heatmap_log, &self.texts.heatmap_log_scale).changed() {
+                        if ui
+                            .checkbox(&mut self.heatmap_log, &self.texts.heatmap_log_scale)
+                            .changed()
+                        {
                             self.update_image();
                         }
 
@@ -807,6 +851,69 @@ impl eframe::App for MatrixApp {
                         );
                         ui.image(&texture);
                     }
+                }
+
+                ui.separator();
+
+                if ui.checkbox(&mut self.show_floor_input, "floor").changed() {
+                    if self.show_floor_input {
+                        _ = self.floor_input_text.trim().parse::<f32>().inspect(|&f| {
+                            self.heatmap_floor = Some(f);
+                            self.update_image();
+                        });
+                    } else {
+                        self.heatmap_floor = None;
+                        self.update_image();
+                    }
+
+                    self.needs_update = true;
+                }
+
+                if self.show_floor_input {
+                    let floor_pick_resp = ui.text_edit_singleline(&mut self.floor_input_text);
+                    if floor_pick_resp.changed() {
+                        _ = self.floor_input_text.trim().parse::<f32>().inspect(|&f| {
+                            self.heatmap_floor = Some(f);
+                            self.update_image();
+                        });
+                    }
+                    if floor_pick_resp.has_focus() {
+                        disable_keybinds = true;
+                    }
+                }
+
+                if ui.checkbox(&mut self.show_ceil_input, "ceiling").changed() {
+                    if self.show_ceil_input {
+                        _ = self.ceil_input_text.trim().parse::<f32>().inspect(|&f| {
+                            self.heatmap_ceil = Some(f);
+                            self.update_image();
+                        });
+                    } else {
+                        self.heatmap_ceil = None;
+                        self.update_image();
+                    }
+
+                    self.needs_update = true;
+                }
+
+                if self.show_ceil_input {
+                    let ceil_pick_resp = ui.text_edit_singleline(&mut self.ceil_input_text);
+                    if ceil_pick_resp.changed() {
+                        _ = self.ceil_input_text.trim().parse::<f32>().inspect(|&c| {
+                            self.heatmap_ceil = Some(c);
+                            self.update_image();
+                        });
+                    }
+                    if ceil_pick_resp.has_focus() {
+                        disable_keybinds = true;
+                    }
+                }
+
+                if ui
+                    .checkbox(&mut self.show_bounded, "only show bounded range")
+                    .changed()
+                {
+                    self.update_image();
                 }
             });
 
@@ -1083,6 +1190,29 @@ impl eframe::App for MatrixApp {
                         self.error = None;
                     }
                 });
+        }
+
+        if !disable_keybinds {
+            // ----------------------------
+            // Input handling
+            // ----------------------------
+            if ctx.input(|i| i.key_pressed(Key::ArrowRight)) {
+                self.move_data();
+            }
+
+            if ctx.input(|i| i.key_pressed(Key::ArrowLeft)) {
+                self.move_data_back();
+            }
+
+            if ctx.input(|i| i.key_pressed(Key::M)) && !self.tracks_to_draw.is_empty() {
+                self.current_mode = Mode::Single;
+                self.needs_update = true;
+            }
+
+            if self.needs_update {
+                self.update_image();
+                self.needs_update = false;
+            }
         }
     }
 }

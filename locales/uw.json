@@ -62,5 +62,7 @@
   "select_all": "Sewect aww",
   "unselect_all": "Unsewect aww",
   "heatmap": "Hewtmwp",
-  "heatmap_log_scale": "Wogawithmic scawe"
+  "heatmap_log_scale": "Wogawithmic scawe",
+  "heatmap_floor": "Fwoow",
+  "heatmap_ceil": "Ceiw"
 }
